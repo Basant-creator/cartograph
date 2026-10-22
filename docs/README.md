@@ -7,6 +7,7 @@
 | [graph/](graph/) | Domain graph model: node/edge kinds, the edge record |
 | [resolver/](resolver/) | Resolution pipeline design (M03–M06) |
 | [benchmarks/](benchmarks/) | What is measured, what is published, CrossStack-Bench |
+| [writeup/](writeup/technical-writeup.md) | The technical writeup: resolver design, benchmark results including failures, calibration — every figure traced to a committed artifact |
 | [security/](security/) | Privacy invariants and their enforcement |
 | [development/](development/) | Machine setup, external storage, workflows |
 | [releases/](releases/) | Release notes (first entry at v0.1.0 / M09) |
