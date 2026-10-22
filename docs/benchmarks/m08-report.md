@@ -1,12 +1,35 @@
 # M08 — confidence calibration and measurement
 
-**Status: INTERNAL.** Not a published benchmark. Every figure carries its
-denominator and its sample size, and the largest limitation is stated before
-the results rather than after them.
+**Status: published figures, not a published benchmark.** This report was
+marked INTERNAL when it was written. Its headline figures have been quoted in
+the README and the v0.1.0 release notes since v0.1.0 (`0d567da`), so they are
+published; it is still not a standalone published benchmark, because
+CrossStack-Bench was not built (see
+[the benchmark index](README.md#crossstack-bench-planned-at-m08-not-built)).
+Every figure carries its denominator and its sample size, and the largest
+limitation is stated before the results rather than after them.
 
 Base checkpoint `cartograph-m07` (`2514f77`). Same seven repositories, same
 pinned commits, same supported subset, same ground-truth methodology. The M07
 reports are unchanged.
+
+### Source artifacts
+
+The figures below are read from committed files in
+[`benchmarks/m08/results/`](../../benchmarks/m08/results/):
+
+| Figures | Artifact |
+|---|---|
+| Edge counts, labels and splits | `dataset.json` — 14,932 records, bound to the digests of its inputs and of its own records |
+| Calibration error; results by confidence value, provenance and relationship class; thresholds | `calibration-all.json`, `calibration-development.json`, `calibration-holdout.json` |
+| Recall | `recall-airflow.json` |
+| Integrity checks | `integrity.json` |
+
+They were produced by the harness in [`benchmarks/m08/`](../../benchmarks/m08/).
+Re-running it needs the pinned corpus checkouts named in
+[`benchmarks/corpus.json`](../../benchmarks/corpus.json), which are not part of
+this repository. The performance figures in the Performance section have no
+committed artifact; see the correction there.
 
 ---
 
@@ -170,6 +193,14 @@ Labelling 14,932 edges across seven repositories takes ~4 minutes, dominated by
 reading 58,225 source files. Calibration itself is milliseconds. Analysis
 performance is unchanged from M07 (58,225 files, ~100 s, peak RSS 860 MB) and
 is recorded as a historical baseline, not a target.
+
+> **Correction (M17 traceability review).** No committed run supports "~100 s,
+> peak RSS 860 MB" for M07, and none records the "~4 minutes" of labelling. The
+> committed M07 runs give a corpus total of 51.7 s (pass 1), 68.4 s (pass 2),
+> 75.8 s (remediation) and 75.6 s (the acceptance run, pass 9), with peak RSS of 825 MB,
+> 825 MB, 965 MB and 964 MB, each on PostHog — see `benchmarks/results/`,
+> `benchmarks/remediation/` and `benchmarks/acceptance/`. The original sentence
+> is kept above so the record shows what was claimed.
 
 ## Security
 
