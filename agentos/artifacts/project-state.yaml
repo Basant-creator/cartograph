@@ -654,12 +654,12 @@ tests:
 
 benchmarks:
   harness: ts_extraction, py_extraction, canonicalization, matching, evaluation and orm groups run
-  published_numbers: none        # internal only until methodology is documented (M08+)
+  published_numbers: M08 accuracy figures   # headline claims since v0.1.0 (0d567da), in README.md and docs/releases/v0.1.0.md; M07 figures are in project documents but were never headline claims - see docs/benchmarks/README.md
   real_repository_corpus:        # M07 - benchmarks/corpus.json, pinned commits
     repositories: 7
     files_analysed: 58225
-    wall_seconds: 68.4
-    peak_rss_bytes: 825114624    # posthog
+    wall_seconds: 68.4           # pass 2, the pre-remediation baseline (results/m07-pass2-measurements.json); the acceptance run, pass 9, measured 75.6 (acceptance/m07-acceptance-measurements.json)
+    peak_rss_bytes: 825114624    # posthog, pass 2; the acceptance run, pass 9, measured 963543040
     route_precision: 1.0         # 101 in-scope ground-truth records
     route_recall: 1.0
     queries_precision: 1.0       # 48 in-scope ground-truth records
@@ -669,7 +669,7 @@ benchmarks:
     remediation_chains_fully_verified: 24
     remediation_chains_from_a_frontend_file: 6
     unmeasured: http_call recall, orm_access recall, chain recall
-    status: INTERNAL             # methodology is first-generation; not for publication
+    status: INTERNAL             # the label the harness wrote: methodology is first-generation. Recorded in CHANGELOG.md and docs/benchmarks/ since 2c8500e, never a headline claim
 
 smoke_tests:                     # robustness only - no accuracy claim
   - corpus: tiangolo/full-stack-fastapi-template
@@ -690,8 +690,8 @@ smoke_tests:                     # robustness only - no accuracy claim
 
 open_risks:
   - exfat-volume-quirks
-  - no-frontend-rooted-chain-on-any-real-repository   # M07 headline; see FW-1..FW-4
-  - orm-access-attribution-without-import-resolution  # 286 edges unconfirmable
+  - frontend-rooted-chains-on-one-repository-only     # M07 accepted four, all in Airflow through its generated client; what blocks the other repositories is listed under "Still not solved" in docs/benchmarks/m07-remediation.md
+  - orm-access-attribution-without-import-resolution  # 126 edges unconfirmable after remediation (286 at baseline) - m07-remediation.md FW-5
   - http-call-and-orm-access-recall-unmeasured
   - uncalibrated-confidence
   - graph-local-node-identity                        # deferred again at M10; ADR-0014 names M13 as the consumer

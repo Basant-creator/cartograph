@@ -7,10 +7,10 @@ symbol-level, cross-language graph of a software system from source code,
 language semantics, HTTP boundaries, database schemas and Git history — and
 shows the evidence behind every edge it draws.
 
-> **Status: v0.1.0, milestone M09 of 17.** The CLI is the product surface: it
-> analyses a repository and traces one relationship across the stack, with
-> evidence on every edge. The desktop app, MCP server and GitHub integration do
-> not exist. Nothing in this README describes behaviour the code does not have —
+> **Status: milestones M00–M16 accepted; M17, the public launch, in progress.**
+> Version 0.1.0. One analysis core serves a CLI, a desktop application, an MCP
+> server and a pull-request review workflow, with evidence on every edge.
+> Nothing in this README describes behaviour the code does not have —
 > see [What works today](#what-works-today).
 
 ---
@@ -89,6 +89,13 @@ orders.py  create_order() line 12
 orders — table
 ```
 
+*Illustrative. The confidences above (0.94, 0.98, 0.97) belong to the synthetic
+fixture in `crates/cartograph-testkit`, not to an analysed repository. Across the
+seven-repository corpus M08 measured, the resolver emitted exactly seven values —
+0.98, 0.90, 0.80, 0.784, 0.72, 0.65 and 0.64 — and every ORM-resolution edge
+scored 0.80, as the Airflow trace above shows. See
+[the M08 report](docs/benchmarks/m08-report.md).*
+
 Doing this requires partial evaluation of dynamically constructed URLs,
 normalisation across four route-declaration dialects, and ORM model
 resolution — three compiler problems, none of which a GitHub API call can
@@ -111,6 +118,10 @@ Cartograph stores the claim *and how it was known*:
 }
 ```
 
+*Also illustrative, from the same fixture. `commit` and `created_at` are not
+fields of Cartograph's [JSON output](docs/architecture/json-schema.md) in any
+schema version.*
+
 Click any edge and you get its record. Competitors assert relationships;
 Cartograph produces evidence for them.
 
@@ -130,16 +141,31 @@ see [ADR-0007](docs/adr/ADR-0007-no-llm-graph-construction.md).
 
 M00 delivered the foundation, M01–M02 extraction, M03 canonicalisation, M04
 the first semantic join, M05 dynamic URLs, M06 ORM resolution, M07 validation
-against seven production repositories, M08 calibration, M09 this CLI:
+against seven production repositories, M08 measurement of confidence and
+recall, and M09 the CLI. M10–M16 built the remaining surfaces on the same core:
 
-| Component | State |
+| Milestone | Capability |
 |---|---|
-| `cartograph-core` — domain model, evidence, provenance, confidence | Implemented, tested |
-| `cartograph-graph` — architecture graph over `petgraph` | Implemented, tested |
-| `cartograph-parser` — tree-sitter TypeScript/TSX **and Python** extraction | Implemented, tested |
-| `cartograph-cli` — `cartograph .`, `trace`, `parse`, `normalize`, `match`, `version` | Implemented, released as v0.1.0 |
-| `cartograph-resolver` — canonical routes, matching, dynamic URLs, ORM resolution | Implemented, tested |
-| `cartograph-testkit` — fixtures | Implemented |
+| M10 | Incremental analysis — unchanged files are not reparsed and per-file ORM-access resolution is cached, with an incremental result equal to a clean one ([ADR-0014](docs/adr/ADR-0014-m10-scope-reconciliation.md)) |
+| M11 | **MAP** — a desktop application (Tauri) that draws the architecture graph and shows the evidence behind any edge |
+| M12 | **BLAST** — `cartograph blast`: what depends on an artefact, across language boundaries |
+| M13 | **DIFF** — `cartograph diff`: what a change did to the architecture, one tree against another |
+| M14 | A pull-request workflow that runs `cartograph diff --markdown` and posts the result as a comment. It is configured for this repository's own pull requests; no reusable `action.yml` is published |
+| M15 | `cartograph-mcp` — an MCP server exposing `map`, `trace`, `blast` and `diff` over one repository identity granted when it is launched ([ADR-0020](docs/adr/ADR-0020-mcp-boundary-and-authorization.md)) |
+| M16 | **ASK** in the desktop app — opt-in per repository, explaining already-derived evidence, with every claim required to cite that evidence verbatim ([ADR-0021](docs/adr/ADR-0021-ask-boundary-and-citation-contract.md)). No in-product way to provide an API key ships, so in practice ASK shows the evidence unexplained — the degraded path it is designed to fall back to |
+
+| Crate | Role |
+|---|---|
+| `cartograph-core` | Domain model: nodes, edges, evidence, provenance and confidence |
+| `cartograph-graph` | The architecture graph; `petgraph` sits underneath |
+| `cartograph-parser` | tree-sitter TypeScript/TSX **and Python** extraction |
+| `cartograph-resolver` | Cross-language resolution: canonical routes, HTTP boundaries, ORM models |
+| `cartograph-pipeline` | Repository analysis composed once for every client |
+| `cartograph-cli` | `cartograph .`, `trace`, `blast`, `diff`, `parse`, `normalize`, `match`, `version` |
+| `cartograph-desktop` | Repository lifecycle and session model for the desktop application |
+| `cartograph-mcp` | The MCP server |
+| `cartograph-ask` | The ASK boundary: a question, derived evidence, and citations checked against it |
+| `cartograph-testkit` | Test fixtures; not published, not a runtime dependency |
 
 ```console
 $ cartograph match ./my-project
@@ -149,9 +175,9 @@ web/src/CheckoutButton.tsx:5  POST /api/orders
 ```
 
 That is the chain the product exists to produce — and it is refused rather than
-guessed when the evidence is thin: ambiguous candidates produce no edge, an
-unresolved `${BASE}` prefix is declined until M05, and a call to an absolute
-host is never joined to a local route.
+guessed when the evidence is thin: ambiguous candidates produce no edge, a
+`${BASE}` prefix that cannot be determined statically stays `{unknown}`, and a
+call to an absolute host is never joined to a local route.
 
 `parse` reports **observed syntax** — symbols, imports, call sites, string and
 template structure, HTTP-shaped calls, and (Python) route declarations — plus
@@ -166,37 +192,48 @@ Neither command claims a resolved relationship. A route observation means "this
 file declares a route that looks like this", not "this endpoint exists"; an
 HTTP observation means "this file contains a call shaped like a request", not
 "it reaches that handler". Canonicalisation makes the two sides *comparable*;
-actually connecting them is M04, and that distinction is the whole point of the
-architecture.
+actually connecting them is the resolver's job, and that distinction is the
+whole point of the architecture.
 
 ### Accuracy, measured
 
-Against seven pinned production repositories — Superset, PostHog, Zulip, Onyx,
-Airflow, AutoGPT and the FastAPI full-stack template — over 14,932 edges:
+M08 labelled every edge Cartograph produced on seven pinned production
+repositories — Superset, PostHog, Zulip, Onyx, Airflow, AutoGPT and the FastAPI
+full-stack template — re-deriving each from source with instruments that share
+no code with the analyser.
 
-| | |
+| Across all seven repositories | |
 |---|---|
+| Edges produced and labelled | 14,932 |
 | False positives among 11,221 independently verified edges | **1** |
-| `HttpCall` recall | 0.907 (117/129) |
-| `OrmAccess` recall | 0.744 (1401/1883) |
-| End-to-end chain recall | 3 of 5 |
+| Edges that could not be verified from source | **24.9%** (3,711) |
 | Calibration error (ECE) | 0.18, toward **under**-confidence |
-| Edges that could not be verified from source | **24.9%** |
 
-That last row is the important one: a quarter of the graph could not be checked,
+Recall was measured in **one repository, inside a stated scope**. It is not
+recall across the corpus and must not be quoted as such:
+
+| Airflow only | Scope | Recall |
+|---|---|---|
+| `HttpCall` | Operations its generated client declares that a route serves | 0.907 (117/129) |
+| `OrmAccess` | Import-bound uses of models that declare a table | 0.744 (1401/1883) |
+| End-to-end chain | Chains whose every hop is independently readable | 3 of 5 |
+
+The 24.9% row is the important one: a quarter of the graph could not be checked,
 and it is not a random quarter — it concentrates where the evidence is weakest.
 Every figure above is therefore an upper bound. **Confidence values are
 uncalibrated priors, not probabilities**, and must not be thresholded as if they
 were.
 
-Full method and limitations: [docs/benchmarks/m08-report.md](docs/benchmarks/m08-report.md)
-and [the confidence policy](docs/benchmarks/m08-confidence-policy.md).
+Method and limitations: [the M08 report](docs/benchmarks/m08-report.md) and
+[the confidence policy](docs/benchmarks/m08-confidence-policy.md). Every figure
+above is read from the committed results in
+[`benchmarks/m08/results/`](benchmarks/m08/results/).
 
 ---
 
-## The eventual product
+## Product surfaces
 
-Three surfaces, in build order:
+Three surfaces, in build order, all delivered:
 
 | Surface | Question | Milestone |
 |---|---|---|
@@ -204,8 +241,8 @@ Three surfaces, in build order:
 | **BLAST** | What breaks if I change this? | M12 |
 | **DIFF** | What did this change do to the architecture? | M13 |
 
-The first finish line — one command against a real repository — is done:
-`cartograph .` shipped at M09 as v0.1.0. Everything above is downstream of it.
+Each is downstream of the first finish line, one command against a real
+repository, which M09 delivered as `cartograph .`.
 
 Full plan: [ROADMAP.md](ROADMAP.md).
 
@@ -240,7 +277,8 @@ tests, and the AgentOS validator. Individual targets are listed by `make help`.
 ## Repository layout
 
 ```
-crates/          The product. Six Rust crates.
+crates/          The product. Ten Rust crates.
+desktop/         The desktop application's Tauri shell and React window. No analysis lives here.
 npm/             A launcher for the native binary. No analysis lives here.
 benchmarks/      The M07 corpus and M08 calibration harness.
 docs/            Architecture, resolver design, benchmarks, security, ADRs.
@@ -258,7 +296,7 @@ runtime code. See [AGENTOS.md](AGENTOS.md).
 
 | Document | Purpose |
 |---|---|
-| [PROJECT_RULES.md](PROJECT_RULES.md) | The 25 binding rules |
+| [PROJECT_RULES.md](PROJECT_RULES.md) | The 26 binding rules |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture |
 | [ROADMAP.md](ROADMAP.md) | 17 milestones and their gates |
 | [CHECKPOINTS.md](CHECKPOINTS.md) | Reproducible rollback points |

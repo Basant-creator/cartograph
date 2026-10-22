@@ -94,6 +94,11 @@ pretend the resolver is solved. **Publish CrossStack-Bench as a standalone
 contribution, publish the failures, and stop.** A benchmark that proves a
 problem is hard is a real contribution.
 
+**Status: unevaluated.** CrossStack-Bench, the population this gate is defined
+on, was not built at M08, so no cross-stack F1 exists to compare with 0.70. The
+gate has neither passed nor failed. See
+[docs/benchmarks/README.md](docs/benchmarks/README.md#gate-2-was-not-evaluated-as-specified).
+
 ### Gate 3 — M09 + 30 days, fewer than 100 real users
 
 Positioning is wrong, not the product. **Rewrite the pitch before building the
