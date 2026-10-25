@@ -29,6 +29,11 @@
 > `rt-async-io-crypto-rust`. It changes no dependency, and Amendment 2's text is
 > left as it was written.
 >
+> **Correction proposed 2026-10-26.** ***Amendment 6*** fixes the licence
+> Amendment 3 recorded for `webpki-roots`: it is `CDLA-Permissive-2.0`, not
+> MPL-2.0, at 1.0.9, the only version this repository has locked. It changes no
+> dependency, and Amendment 3's table is left as it was written.
+>
 > **Amendments 2, 3, 4 and 5 record implementation choices this repository
 > makes. None is claimed to be frozen-stack content, because none is.**
 
@@ -1447,3 +1452,70 @@ resolution builds a dependency graph, and a `compile_error!` only fires when
 something is compiled. **A cross-target `cargo check` is the check that catches
 a feature error; a dependency tree is not.** That belongs in the Step 7
 implementation's validation, before CI rather than from it.
+
+## Amendment 6 — the licence of `webpki-roots`, corrected
+
+**Status: Proposed, 2026-10-26.** Amendment 3's dependency matrix records the
+licence of `webpki-roots` as **"MPL-2.0 (Mozilla trust anchors)"**. That is not
+the crate's licence. This amendment records the licence the crate declares. **It
+changes no dependency**, and Amendment 3's table is not edited, by the rule
+Amendment 5 states: a decision that was right about the crate and wrong about a
+detail is corrected on top, not by rewriting what was decided.
+
+### The evidence
+
+| | |
+|---|---|
+| Locked version | `webpki-roots` **1.0.9**, `Cargo.lock` checksum `7dcd9d09a39985f5344844e66b0c530a33843579125f23e21e9f0f220850f22a`. It entered the lockfile at 1.0.9 in `23d8fcb` on 2026-09-21 and has not changed, so the row written on 2026-09-05 was wrong for every version this repository has used |
+| Declared licence | `license = "CDLA-Permissive-2.0"`, in the `Cargo.toml` of the published crate |
+| Licence file | the crate's only `LICENSE` is the *Community Data License Agreement – Permissive – Version 2.0* |
+| What the data is | the crate's README: the data *"is used via the CCADB Data Usage Terms"* and *"is a derived work of the CCADB data"*; `src/lib.rs` is generated from Mozilla's `IncludedCACertificateReportPEMCSV` report via ccadb.org |
+| Path into the build | `ureq` 3.4.2 → `webpki-roots` 1.0.9, through `ureq`'s default `rustls-webpki-roots` feature |
+
+The other three rows of the matrix were checked against the same source, the
+locked crate's `Cargo.toml`, and are correct: `ureq` 3.4.2 `MIT OR Apache-2.0`,
+`rustls` 0.23.45 `Apache-2.0 OR ISC OR MIT`, `ring` 0.17.14 `Apache-2.0 AND
+ISC`. Their recorded versions, 3.4.0 and 0.23.43, are what Amendment 3 accepted;
+the lockfile has since moved within the accepted range.
+
+### What the licence requires
+
+CDLA-Permissive-2.0 places one condition on sharing the data (§2.1): a recipient
+*"may share Data, with or without modifications, so long as the Data Recipient
+makes available the text of this agreement with the shared Data."* It places no
+condition on results computed from the data (§3.1), and its §4 disclaims
+warranty and liability. It asks for no copyright notice and no attribution
+beyond making the agreement text available. This amendment does not add one.
+
+`webpki-roots` compiles the trust anchors into the binary that links it. Today
+that is **only the desktop application**. `cargo tree -i webpki-roots` finds it
+under `cartograph-desktop` and under neither `cartograph-cli` nor
+`cartograph-mcp`, which is Amendment 3's decision C3 holding: the network client
+is reachable from `cartograph-ask` alone. The release workflow publishes only
+the `cartograph` command-line binary, with `LICENSE` and `README.md`. **No
+artefact this repository publishes contains the data, so no obligation arises
+from what is published now.**
+
+### Decision
+
+- The licence of `webpki-roots` 1.0.9 is recorded as **`CDLA-Permissive-2.0`**,
+  for data derived from the CCADB report of Mozilla's included root
+  certificates.
+- **Any distribution of the desktop application must make the text of
+  CDLA-Permissive-2.0 available with it**, as §2.1 requires. The text ships in
+  the crate as its `LICENSE` file. How the desktop bundle carries it belongs to
+  the work that first distributes the desktop application, and is not decided
+  here.
+
+### What this amendment does not do
+
+- It does **not** edit Amendment 3. Its crate choice, rejected alternatives,
+  reasoning and table stand as written, including the licence cell this
+  corrects.
+- It adds no dependency, changes no feature, and makes no manifest or lockfile
+  change.
+- It does **not** create a notice file, a licence bundle or a release step. No
+  published artefact needs one today.
+- It does **not** change the trust-anchor decision. Bundled roots remain the
+  choice, and their cost, updated by a Cartograph release rather than by the
+  operating system, is as Amendment 3 recorded it.
