@@ -41,6 +41,10 @@ __pycache__/
 # ─── Node (desktop application, from M11) ──────────────────────────────────
 node_modules/
 
+# The VitePress documentation site (M17). Its build output, docs/.vitepress/dist/,
+# is already covered by the dist/ rule below; this is the dev-server cache.
+docs/.vitepress/cache/
+
 # The Tauri shell is its own cargo workspace (ADR-0016), so the root-anchored
 # /target/ rule above does not reach it.
 desktop/src-tauri/target/
