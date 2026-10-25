@@ -743,7 +743,7 @@ def check_corpus_coverage(corpus, results):
     unscored = sorted(required - scored_names)
     return _outcome(
         7, "a corpus entry removed or left unscored",
-        _found(missing + unscored),
+        NOT_RUN if not declared_names else _found(missing + unscored),
         {"declared": sorted(declared_names), "scored": sorted(scored_names),
          "missing_from_results": missing, "coverage_entries_unscored": unscored})
 
@@ -787,7 +787,10 @@ def check_revisions(corpus, mirror):
             unreadable.append(entry["name"])
         elif head != entry["commit"]:
             wrong.append({"repo": entry["name"], "expected": entry["commit"], "actual": head})
-    status = VIOLATION if wrong else ERROR if unreadable else PASSED
+    if not corpus["repositories"]:
+        status = NOT_RUN
+    else:
+        status = VIOLATION if wrong else ERROR if unreadable else PASSED
     return _outcome(
         10, "evaluation run against a revision other than the pinned one", status,
         {"mismatched": wrong, "unreadable": unreadable})

@@ -194,6 +194,11 @@ class CorpusCoverage(unittest.TestCase):
         self.assertEqual(check["status"], E.VIOLATION)
         self.assertEqual(check["detail"]["coverage_entries_unscored"], ["b"])
 
+    def test_with_no_corpus_it_does_not_run(self):
+        # An empty corpus has nothing to cover; that is not a pass.
+        empty = {"repositories": [], "coverage_requirements": {}}
+        self.assertEqual(E.check_corpus_coverage(empty, {})["status"], E.NOT_RUN)
+
     def test_a_repository_listed_but_not_scored_is_a_violation(self):
         # It used to count: a MISSING entry in the results read as scored.
         results = {"a": scored(), "b": {"status": "MISSING"}}
@@ -246,6 +251,10 @@ class Revisions(unittest.TestCase):
         check = E.check_revisions(CORPUS, "mirror")
         self.assertEqual(check["status"], E.VIOLATION)
         self.assertEqual(check["detail"]["mismatched"][0]["repo"], "b")
+
+    def test_with_no_corpus_it_does_not_run(self):
+        empty = {"repositories": [], "coverage_requirements": {}}
+        self.assertEqual(E.check_revisions(empty, "mirror")["status"], E.NOT_RUN)
 
     def test_an_unreadable_checkout_is_an_error_not_a_mismatch(self):
         # On Windows the old shell command made every checkout unreadable and
