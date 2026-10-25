@@ -9,10 +9,18 @@ first one in path order and a per-file count.
 
 What is compared:
 
-  * edges, as (kind, file:line, confidence, provenance);
+  * edges, as (kind, file:line, confidence, provenance), and between two `match`
+    documents also the (kind, name, file) identity of each edge's source and
+    target - the identity `cartograph diff` uses - so an edge from the same call
+    site to a different handler is a difference;
   * edge numbering: whether each edge also has the same id on both sides;
-  * client calls, as (file, line, route) from `matches` - `match` documents only,
-    because the M08 dataset records edges, not calls.
+  * client calls, as (file, line, route, status) from `matches`, so a call
+    matched on one side and refused on the other is a difference - `match`
+    documents only, because the M08 dataset records edges, not calls.
+
+The M08 dataset records no edge endpoints, so against it an edge is compared by
+kind, location, confidence and provenance, with its numbering: what the dataset
+holds, and nothing it does not.
 
 Edge ids are graph-local (ADR-0011): removing one edge renumbers every edge
 after it, so ids are no part of an edge's identity when locating a divergence.
@@ -42,17 +50,24 @@ from collections import Counter
 M08_CONFIDENCE_PLACES = 6
 
 
-def edges_of_match(document, places=None, numbered=False):
+def edges_of_match(document, places=None, numbered=False, endpoints=False):
     """The edge multiset of a `match --json` document.
 
-    `numbered` adds each edge's graph-local id to its key.
+    `endpoints` adds the (kind, name, file) identity of the edge's source and
+    target nodes; `numbered` adds the edge's graph-local id.
     """
+    nodes = {}
+    if endpoints:
+        nodes = {n["id"]: (n["kind"], n["name"], n.get("file"))
+                 for n in document["graph"]["nodes"]}
     out = Counter()
     for edge in document["graph"]["edges"]:
         confidence = edge["confidence"]
         if places is not None:
             confidence = round(confidence, places)
         key = (edge["kind"], f"{edge['file']}:{edge['line']}", confidence, edge["provenance"])
+        if endpoints:
+            key += (nodes[edge["source"]], nodes[edge["target"]])
         out[key + (edge["id"],) if numbered else key] += 1
     return out
 
@@ -69,7 +84,7 @@ def edges_of_m08(dataset, repository, numbered=False):
 
 def calls_of_match(document):
     """The client-call multiset of a `match --json` document."""
-    return Counter((m["client_file"], m["client_line"], m["client_route"])
+    return Counter((m["client_file"], m["client_line"], m["client_route"], m["status"])
                    for m in document["matches"])
 
 
@@ -113,10 +128,11 @@ def compare(left, right=None, dataset=None, repository=None):
         numbering = (edges_of_match(left, places, numbered=True)
                      == edges_of_m08(dataset, repository, numbered=True))
     else:
-        report = {"edges": difference(edges_of_match(left), edges_of_match(right)),
+        report = {"edges": difference(edges_of_match(left, endpoints=True),
+                                      edges_of_match(right, endpoints=True)),
                   "client_calls": difference(calls_of_match(left), calls_of_match(right))}
-        numbering = (edges_of_match(left, numbered=True)
-                     == edges_of_match(right, numbered=True))
+        numbering = (edges_of_match(left, numbered=True, endpoints=True)
+                     == edges_of_match(right, numbered=True, endpoints=True))
     same_content = all(not part["only_left"] and not part["only_right"]
                        for part in report.values())
     report["edge_numbering_identical"] = numbering

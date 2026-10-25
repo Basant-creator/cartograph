@@ -33,7 +33,12 @@ def run_document():
     return {
         "root": "posthog",
         "elapsed_ms": 1000,
-        "graph": {"edges": [
+        "graph": {"nodes": [
+            {"id": 0, "kind": "function", "name": "listHooks", "file": "frontend/src/lib/api.ts"},
+            {"id": 1, "kind": "function", "name": "health", "file": "services/stripe-mock/main.py"},
+            {"id": 2, "kind": "function", "name": "list_actions", "file": "posthog/api/action.py"},
+            {"id": 3, "kind": "class", "name": "Action", "file": "posthog/models/action.py"},
+        ], "edges": [
             edge(0, "http-call", "nodejs/src/common/api/router.ts", 43),
             edge(1, "http-call", "frontend/src/lib/api.ts", 12, confidence=0.78400004),
             edge(2, "orm-access", "posthog/api/action.py", 7, provenance="orm-resolution"),
@@ -67,7 +72,8 @@ class Compare(unittest.TestCase):
 
         self.assertFalse(report["identical"])
         calls = report["client_calls"]
-        self.assertEqual(calls["only_left"], [["nodejs/src/cdp/cdp-api.ts", 101, "GET /public/hooks"]])
+        self.assertEqual(calls["only_left"],
+                         [["nodejs/src/cdp/cdp-api.ts", 101, "GET /public/hooks", "no-match"]])
         self.assertEqual(calls["only_right"], [])
         self.assertEqual(calls["first_divergence"]["side"], "left")
         self.assertEqual(calls["per_file"],
@@ -128,6 +134,43 @@ class Compare(unittest.TestCase):
         )
         self.assertEqual([item[1] for item in edges["only_right"]], ["posthog/api/action.py:7"])
         self.assertEqual(edges["only_right"][0][2], 0.5)
+
+    def test_an_edge_to_a_different_target_is_a_difference(self):
+        # Same call site, kind, confidence and provenance, but the request now
+        # reaches another handler. Without endpoints in the key this compared
+        # as identical.
+        after = run_document()
+        after["graph"]["edges"][0]["target"] = 2
+        report = C.compare(run_document(), after)
+        self.assertFalse(report["identical"])
+        self.assertEqual(report["edges"]["only_left"][0][5][1], "health")
+        self.assertEqual(report["edges"]["only_right"][0][5][1], "list_actions")
+
+    def test_an_edge_from_a_different_source_is_a_difference(self):
+        after = run_document()
+        self.assertEqual(after["graph"]["edges"][2]["source"], 0)
+        after["graph"]["edges"][2]["source"] = 3
+        self.assertFalse(C.compare(run_document(), after)["identical"])
+
+    def test_node_ids_are_not_part_of_an_endpoint(self):
+        # Endpoints are compared by (kind, name, file); renumbering the nodes
+        # alone changes nothing.
+        after = run_document()
+        remap = {0: 3, 1: 2, 2: 1, 3: 0}
+        for node in after["graph"]["nodes"]:
+            node["id"] = remap[node["id"]]
+        for edge in after["graph"]["edges"]:
+            edge["source"], edge["target"] = remap[edge["source"]], remap[edge["target"]]
+        self.assertTrue(C.compare(run_document(), after)["identical"])
+
+    def test_a_call_matched_on_one_side_and_refused_on_the_other_is_a_difference(self):
+        # Same call site and route, a different decision. Without the status
+        # in the key this compared as identical.
+        after = run_document()
+        after["matches"][1]["status"] = "ambiguous"
+        calls = C.compare(run_document(), after)["client_calls"]
+        self.assertEqual(calls["only_left"][0][3], "exact")
+        self.assertEqual(calls["only_right"][0][3], "ambiguous")
 
     def test_two_runs_are_compared_without_rounding(self):
         # The six-decimal rounding is the M08 labeller's, and is applied only

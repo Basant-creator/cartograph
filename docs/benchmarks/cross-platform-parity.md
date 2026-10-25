@@ -92,6 +92,12 @@ side and to nothing else.
 - **macOS was not re-run.** The macOS side is the committed M08 dataset and the
   committed measurements. The comparison is between a Windows run today and
   macOS results recorded at M07 and M08.
+- **Edge endpoints were not compared across platforms.** The M08 dataset records
+  each edge's kind, location, id, confidence and provenance, but not its source
+  or target, so against it those five are what can be compared. Identical ids
+  and locations for all 14,932 edges make a different endpoint unlikely, but they
+  do not exclude one. Two `match --json` documents are compared with each edge's
+  endpoints, which is how the PostHog comparison above was made.
 - **Client calls were compared across platforms only in total.** The M08
   dataset records edges, not calls, and no per-call macOS record is committed.
 - **One Windows machine**, `x86_64-pc-windows-msvc`. Linux was not compared, and
@@ -118,7 +124,8 @@ python3 benchmarks/compare_edges.py posthog.json \
 Exit status 0 means the run agrees with the M08 dataset edge for edge, numbering
 included; 1 means it does not, and the report lists every difference in path
 order with the first one first. Two `match --json` documents can be compared
-directly, client calls included:
+directly, with each edge's source and target and each client call's match
+outcome included:
 
 ```bash
 python3 benchmarks/compare_edges.py before.json after.json
