@@ -65,6 +65,10 @@ Harness: `benchmarks/run_benchmark.py` measures, `benchmarks/evaluate.py`
 scores, and the two never share a judgement — a change to one cannot alter what
 the other recorded.
 
+On Windows, the accepted engine produces the same 14,932 edges as the M08
+dataset records from macOS, in all seven repositories
+([cross-platform-parity.md](cross-platform-parity.md)).
+
 ## CrossStack-Bench (planned at M08, not built)
 
 The M08 plan was 10–15 real full-stack repositories, ~500 manually labelled

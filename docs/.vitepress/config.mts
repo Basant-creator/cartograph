@@ -189,6 +189,7 @@ export default defineConfig({
           { text: 'M08 — calibration and measurement', link: '/benchmarks/m08-report' },
           { text: 'M08 — confidence policy', link: '/benchmarks/m08-confidence-policy' },
           { text: 'M11 — renderer', link: '/benchmarks/m11-renderer' },
+          { text: 'Cross-platform parity', link: '/benchmarks/cross-platform-parity' },
         ],
       },
       {
