@@ -105,6 +105,10 @@ measured, Airflow's generated client. That is a diagnostic of a single
 generated client, not the gate's measurement, and it is not a substitute for
 one. **Gate 2 is unevaluated: it has neither passed nor failed.**
 
+What a valid evaluation would need, and the decisions that have to be made
+before any of it is built, are set out in
+[gate-2-requirements.md](gate-2-requirements.md).
+
 ## Calibration (planned at M08, not fitted)
 
 The plan was a feature vector per candidate edge — exact path match, method
