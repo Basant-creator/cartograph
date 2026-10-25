@@ -4,8 +4,8 @@ project: cartograph
 spec_version: V3
 spec_frozen: 2026-08
 
-current_milestone: M16
-status: ACCEPTED                # M16 accepted 2026-09-22; see milestones.M16
+current_milestone: M17
+status: IN_PROGRESS             # M17 is in progress and NOT accepted
 current_branch: main
 next_allowed_milestone: M17    # UNLOCKED - M16 accepted; M17 is the final milestone
 # `current_milestone` names the milestone this tree implements, and
@@ -13,17 +13,26 @@ next_allowed_milestone: M17    # UNLOCKED - M16 accepted; M17 is the final miles
 # (crates/cartograph-cli/src/version.rs). The two must always move together,
 # in a pull request, because the constant is product code.
 #
-# It read M15 through M15's acceptance. M16 is merged - twenty-two pull
-# requests, #46 through #67, implementation slices interleaved with the ADR
-# decisions each one needed first - so the tree implements M16 and the pair
-# advanced in PR #67, landing before the checkpoint so the tag could not name a
-# commit whose `cartograph version` still reported M15.
+# It read M16 from PR #67 through M16's acceptance. This comment then said the
+# pair advances "in the first M17 pull request", but it did not move in #69
+# through #72 - the traceability remediation, the writeup and two
+# documentation corrections, all M17 work. It advances in PR #73, the
+# documentation site, the first M17 pull request after that was noticed.
 #
-# `status` above describes `current_milestone`. M16 is accepted, so it reads
-# ACCEPTED, flipped together with milestones.M16.status at the acceptance step.
+# Unlike M11 through M16, the pair moves while the milestone is still being
+# built rather than after its slices merge: the writeup is merged (#70), the
+# site is #73, and v1.0 stable has not begun. `cartograph version` therefore
+# reports M17 on a tree that does not yet implement all of M17. That is what
+# `status: IN_PROGRESS` records.
 #
-# It reads M16 and stays there through M17's work. The pair advances in the
-# first M17 pull request, not in a bookkeeping commit.
+# `milestone` and the semantic version are separate fields. The workspace
+# version stays 0.1.0 here; the move to 1.0.0 is M17's release step, not
+# part of this transition.
+#
+# `status` above describes `current_milestone`, and it is IN_PROGRESS rather
+# than ACCEPTED precisely because M17 is not accepted. Acceptance flips it,
+# together with milestones.M17.status, and only then. M17 is the final
+# milestone, so `next_allowed_milestone` has nothing to advance to.
 
 milestones:
   M00:
@@ -611,13 +620,31 @@ milestones:
       Analysis latency on a large repository remains a follow-up concern
       rather than a solved problem: Airflow measured roughly 267.6s cold and
       31.7s warm before this milestone, and M15 added no caching.
+
+  M17:
+    # In progress; acceptance has not happened. The status field in this
+    # ledger has only ever taken ACCEPTED or NOT_STARTED, and it flips to
+    # ACCEPTED at the formal acceptance step - not before. The comment carries
+    # what the two-value vocabulary cannot.
+    #
+    # Of the scope in agentos/milestones/M17-public-launch.md: the technical
+    # writeup is merged (#70, after the traceability remediation in #69); the
+    # VitePress site is #73, not yet merged and not deployed; v1.0 stable has
+    # not begun - the workspace version is 0.1.0 and no v1.0.0 tag exists.
+    # #71 and #72 corrected stale resolver documentation.
+    status: NOT_STARTED                   # NOT ACCEPTED; in progress, see above
+    implementation: IN_PROGRESS           # not MERGED: v1.0 stable outstanding
+    pull_request: null
+    provisional_tag: null
+    accepted_tag: null
+
 last_checkpoint:                 # ADR-0010: the tag is the authority for its SHA
   milestone: M16
   class: accepted
   tag: cartograph-m16
   merge_commit: c9cde1b388710d56c5e695d220832889e0dbea24
 
-gates:                           # main bfca6e6 plus this bookkeeping change, 2026-09-22, Windows
+gates:                           # main 0905c17 plus PR #73 with this transition, 2026-10-25, Windows
   repository: PASS               # QG-001
   fmt: PASS                      # QG-002
   clippy: PASS                   # QG-003
@@ -626,22 +653,24 @@ gates:                           # main bfca6e6 plus this bookkeeping change, 20
   architecture: PASS             # QG-006
   documentation: PASS            # QG-007
   milestone_acceptance: PASS     # QG-008
-  agentos_validator: PASS        # 100/100, 3 warnings - see agentos_validator below
-  ci: PASS                       # #66 at 07b2139: all ten checks green; merged as bfca6e6
+  agentos_validator: PASS        # 98/100, 3 warnings - see agentos_validator below
+  ci: PASS                       # #73 at 8803fb8, before this transition: eleven checks green, Pages deploy skipped as designed
 
 agentos_validator:
-  score: 100                     # ADR-0009 recorded 99/100 at M00; 98 at 8690ebf
+  score: 98                      # ADR-0009 recorded 99/100 at M00; 98 at 8690ebf; 100 recorded at M16
   status: PASS
   warnings: 3
   # The three warnings are unchanged and still the same three files. Two are
   # ADR-0009's deliberate omissions; the third is absent from upstream
   # raptors-way as well, so it is not a Cartograph regression.
   #
-  # The score moved 98 -> 100 without the framework changing:
-  # validate_agentos.py is byte-identical to 8690ebf and no checklist or
-  # artifact file was added, so the difference is documentation content, not
-  # tooling. It is recorded here rather than explained further, because the
-  # cause was not investigated.
+  # The M16 snapshot recorded 100. Re-run on 2026-10-25 the validator reports
+  # an overall grade of 98 here, and also at c9cde1b (the cartograph-m16
+  # commit) and at 0905c17 (main before this pull request), with Production
+  # at 80 and Distribution at 90 - the categories the missing files below
+  # cost. So 100 does not reproduce at the commit it was recorded for, and
+  # nothing in this pull request moved the score. The cause of the earlier
+  # 100 was not investigated.
   warning_detail:
     - production_validation/productivity_metrics.csv  # absent upstream too
     - .pre-commit-config.yaml                         # ADR-0009: not vendored
