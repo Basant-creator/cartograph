@@ -96,6 +96,25 @@ jobs:
       - name: Validate framework health
         run: python3 agentos/tools/scripts/validate_agentos.py
 
+  # The scorer's refusal to score an altered answer key. Its Windows run is
+  # the point: the check it replaces passed without running there, because
+  # cmd.exe did not understand the shell string it was given.
+  benchmark-scorer:
+    name: benchmark scorer · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scoring-input integrity tests
+        shell: bash
+        run: |
+          PYTHON=$(command -v python3 || command -v python)
+          "$PYTHON" benchmarks/test_evaluate.py -v
+
   release-build:
     name: release binary · ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
