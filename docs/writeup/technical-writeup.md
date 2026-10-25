@@ -240,11 +240,12 @@ The benchmark was built to resist its own author:
 - **Ground truth is independent of the analyser.** It is drafted from source by
   instruments that cannot import the analyser and never read its output.
 - **Measuring and scoring are separate.** `run_benchmark.py` measures,
-  `evaluate.py` scores, and the evaluator refuses results whose corpus, ground
-  truth or supported subset do not match the digests recorded with them.
-- **The benchmark attacks itself.** Every evaluation runs adversarial checks
-  against the ways its numbers could be flattered, and records whether each was
-  detected.
+  `evaluate.py` scores, and every result records the digests of the corpus,
+  ground truth and supported subset it was scored against; quality gate QG-009
+  rejects a committed result whose digests no longer match the committed files.
+- **The benchmark attacks itself.** Every evaluation runs ten adversarial checks
+  against the ways its numbers could be flattered, each recording the evidence
+  it gathered. The counts below are read from that evidence.
 
 ### M07: from a negative finding to the accepted engine
 
@@ -262,13 +263,31 @@ The same corpus, three engines. Each column is one run's
 | Chains fully verified, request issuer to table | 6 | 11 | 11 |
 | Decisions classified ambiguous — no edge | 1,886 | 1,544 | 1,544 |
 | `must_not_produce` assertions violated | 0 of 13 | 0 of 13 | 0 of 13 |
-| Adversarial checks detected | 10 of 10 | 10 of 10 | 10 of 10 |
+| Adversarial checks passed, read from their evidence | 9 of 10 | 10 of 10 | 10 of 10 |
 
 Route extraction and model-to-table resolution held precision and recall at
 1.000 on their in-scope ground truth in every run. The remediation is visible as
 a subtraction: 379 `OrmAccess` edges were **removed** — every one the
 remediation sampled was a symbol that merely shared a model's name — and the
 unconfirmed remainder fell from 286 to 126.
+
+**The baseline's first check recorded a violation.** Passes 1 and 2 were scored
+against ground truth that differed from its commit: all seven files had been
+revised by the
+[corrections to the drafting instrument](../benchmarks/m07-report.md#defects-found-in-the-benchmark-instrument-not-in-cartograph)
+that the M07 report lists, two of them made after pass 2, and the revisions were
+committed afterwards with the evaluations. Check 1 recorded exactly that:
+`working_tree_matches_commit: false`, with all seven files listed as modified.
+The ground truth those passes were scored against is byte-identical to the
+ground truth committed, which QG-009 verifies against the digests each result
+records, so the scores describe the committed answer key. What the check could
+not establish at the time is the thing it exists to establish: that the key was
+fixed before it was scored. The remediation and acceptance runs pass all ten.
+
+Until October 2026 every check also recorded `detected: true` whatever it
+found, so that field counted checks, not results, and this table once read "10
+of 10" for all three runs. The counts above are read from each check's own
+evidence, by the criterion the scorer now applies.
 
 **The chains, and what the artifacts do not record.** A chain here runs from the
 function that issues a request — a client operation, a test, or a command-line
@@ -554,7 +573,7 @@ relative to [`benchmarks/`](../../benchmarks/) unless they name a source file.
 | `HttpCall` produced | same | `sum(.http_call.produced)` |
 | Chains: 6 · 11 · 11; ten Airflow, one Onyx | same | `sum(.chains.fully_verified)`; per repository; issuers from `.chains.chains[].frontend` |
 | `must_not_produce`: 0 of 13 | same | `len` and `violated` over `.must_not_produce[]` |
-| Adversarial checks: 10 of 10 | same | `adversarial_checks[].detected` |
+| Adversarial checks passed: 9 · 10 · 10; pass 2 fails check 1 | same | each `adversarial_checks[].detail`, read by `benchmarks/adversarial_outcomes.py`; the recorded `detected` field is always `true` and is not counted |
 | Ambiguous: 1,886 · 1,544 · 1,544 | [p2m] · [r8m] · [a9m] | `sum(repositories[].measurements.decisions.ambiguous)` |
 | Wall time 51.7 · 68.4 · 75.8 · 75.6 s | [p1m] · [p2m] · [r8m] · [a9m] | `sum(repositories[].performance.wall_seconds)` |
 | Peak RSS 825 · 825 · 965 · 964 MB | same | PostHog `performance.peak_rss_bytes` ÷ 10⁶ |

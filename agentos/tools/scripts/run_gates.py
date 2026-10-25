@@ -480,8 +480,19 @@ def benchmark_problems():
                 f"pass {pass_number} results were produced against a different corpus "
                 "than the one committed"
             )
-        if not result.get("adversarial_checks"):
-            problems.append(f"pass {pass_number} results record no adversarial checks")
+        # All ten, each with something to read. Presence is all this asserts:
+        # what each check found is read from its evidence by
+        # benchmarks/adversarial_outcomes.py, because these files predate the
+        # scorer recording outcomes and their `detected` field is always true.
+        checks = result.get("adversarial_checks") or []
+        attacks = sorted(c.get("attack") for c in checks if isinstance(c.get("attack"), int))
+        if attacks != list(range(1, 11)):
+            problems.append(
+                f"pass {pass_number} results do not record the ten adversarial checks "
+                f"(found {attacks})"
+            )
+        elif any(not c.get("status") and not c.get("detail") for c in checks):
+            problems.append(f"pass {pass_number} records an adversarial check with no evidence")
         # Deleting a ground-truth record shrinks both sides of the recall
         # ratio, so the denominator check alone cannot see it — that attack
         # was the one this suite initially missed. Binding the results to the

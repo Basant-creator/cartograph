@@ -109,11 +109,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Scoring-input integrity tests
+      - name: Scoring-input integrity and adversarial-check tests
         shell: bash
         run: |
           PYTHON=$(command -v python3 || command -v python)
           "$PYTHON" benchmarks/test_evaluate.py -v
+          "$PYTHON" benchmarks/test_adversarial_checks.py -v
 
   release-build:
     name: release binary · ${{ matrix.os }}
