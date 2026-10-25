@@ -54,6 +54,23 @@ tree in which git cannot answer. Edited ground truth is therefore committed
 before it is scored. `benchmarks/test_evaluate.py` tests both outcomes on
 temporary copies.
 
+After scoring, ten adversarial checks look for the ways the numbers could be
+flattered. Each records its evidence and one outcome: `passed` (it ran and
+found nothing), `violation` (it found the condition it guards against),
+`error` (it could not read something it needs) or `not_run` (there was nothing
+to examine). The result is written either way, with `adversarial_summary`
+listing the checks by outcome, and `evaluate.py` exits 1 unless all ten passed.
+`benchmarks/test_adversarial_checks.py` gives every check a fixture it must
+pass and one it must flag.
+
+Evaluations written before outcomes were recorded say `detected: true` on every
+check, whatever it found. `benchmarks/adversarial_outcomes.py` reads their
+evidence instead, by the same criteria, and changes nothing:
+
+```
+python3 benchmarks/adversarial_outcomes.py benchmarks/results/m07-pass2-evaluation.json
+```
+
 ## Reading the numbers
 
 They are INTERNAL. `docs/benchmarks/m07-report.md` says what was measured, what

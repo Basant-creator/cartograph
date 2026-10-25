@@ -63,6 +63,7 @@ validate:
 gates:
 	@$(PYTHON) benchmarks/m08/test_calibration.py -q
 	@$(PYTHON) benchmarks/test_evaluate.py -q
+	@$(PYTHON) benchmarks/test_adversarial_checks.py -q
 	@$(PYTHON) agentos/tools/scripts/run_gates.py
 
 ## Remove build artifacts

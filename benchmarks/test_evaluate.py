@@ -240,12 +240,25 @@ class ScorerExitStatus(TempDirTest):
     def test_committed_ground_truth_is_scored_and_the_proof_recorded(self):
         proc, out = self.score(self.copies.ground_truth, self.empty_measurement())
 
-        self.assertEqual(proc.returncode, 0, proc.stderr)
+        # Scored, because the inputs are the committed ones, and check 1 says so.
         with open(out, encoding="utf-8") as handle:
             result = json.load(handle)
         check = next(c for c in result["adversarial_checks"] if c["attack"] == 1)
+        self.assertEqual(check["status"], E.PASSED)
         self.assertTrue(check["detail"]["inputs_match_commit"])
         self.assertEqual(check["detail"]["problems"], [])
+
+        # But a measurement of nothing, with no checkouts, is not a passing run.
+        # Before outcomes were recorded this exited 0, every check claiming
+        # `detected: true`.
+        self.assertEqual(proc.returncode, 1, proc.stderr)
+        summary = result["adversarial_summary"]
+        self.assertFalse(summary["all_passed"])
+        self.assertEqual(summary[E.PASSED], [1, 3, 4])
+        self.assertEqual(summary[E.VIOLATION], [7, 9])  # nothing scored; toolchain "unused"
+        self.assertEqual(summary[E.ERROR], [10])        # no checkout to read
+        self.assertEqual(summary[E.NOT_RUN], [2, 5, 6, 8])
+        self.assertNotIn("detected", check)
 
 
 if __name__ == "__main__":

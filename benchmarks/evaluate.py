@@ -583,25 +583,47 @@ def metrics(tp, fp, fn):
 
 
 # ── Checks against gaming the benchmark ──────────────────────────────
+#
+# The ten attacks of the M07 benchmark plan, each as a check that runs on every
+# evaluation. A check guards against one way the numbers could be flattered,
+# and records one of four outcomes:
+#
+#   passed     it ran, and found none of the condition it guards against;
+#   violation  it ran, and found that condition;
+#   error      it could not complete, because something it needs could not be
+#              read;
+#   not_run    there was nothing for it to examine.
+#
+# Only `passed` is a pass. The scorer exits 1 unless all ten passed, and writes
+# the result either way, so the evidence of a failed run can be read.
+#
+# Until this change every check recorded `detected: true` whatever it found, so
+# that field said only that the check existed. Evaluations written before then
+# keep it; `recorded_outcome` reads their evidence instead.
 
-def adversarial_checks(corpus, subset, subset_path, ground_truth, measurement, mirror, results,
-                       integrity):
-    """The ten attacks in PART 23, each as a check that runs every time.
+PASSED = "passed"
+VIOLATION = "violation"
+ERROR = "error"
+NOT_RUN = "not_run"
 
-    Where an attack cannot be detected mechanically, the check says so rather
-    than passing silently; a check that always passes is not a check.
+
+def _outcome(number, description, status, detail):
+    return {"attack": number, "description": description, "status": status, "detail": detail}
+
+
+def _found(problems):
+    return VIOLATION if problems else PASSED
+
+
+def check_scoring_inputs(integrity, ground_truth, subset_path):
+    """1 — ground truth, scope or corpus edited after the fact.
+
+    `main` refuses to score when this does not hold, so a run that reaches the
+    check records the proof rather than discovering a failure.
     """
-    checks = []
-
-    def add(number, attack, ok, detail):
-        checks.append({"attack": number, "description": attack,
-                       "detected": bool(ok), "detail": detail})
-
-    # 1 — a ground-truth relationship removed after the fact. Scoring does not
-    # start unless `verify_scoring_inputs` passed, so a run that reaches this
-    # point records the proof rather than discovering a failure.
-    add(1, "ground-truth or scope edited after measurement",
-        True,
+    return _outcome(
+        1, "ground-truth or scope edited after measurement",
+        PASSED if integrity["verified"] else VIOLATION,
         {"inputs_match_commit": integrity["verified"],
          "reference_commit": integrity["reference_commit"],
          "problems": integrity["problems"],
@@ -611,97 +633,220 @@ def adversarial_checks(corpus, subset, subset_path, ground_truth, measurement, m
                  "blob committed at the reference commit before scoring began; a "
                  "difference, an extra file or a missing file stops the run"})
 
-    # 2 — analyser output edited to agree with ground truth.
-    mismatched = []
+
+def check_raw_outputs(measurement, root=ROOT):
+    """2 — analyser output edited between measuring and scoring.
+
+    Both files the scorer reads are checked: the `match` output and the
+    `normalize` output, from which route extraction is scored.
+    """
+    mismatched, checked = [], 0
     for row in measurement["repositories"]:
         if row["status"] != "OK":
             continue
-        path = os.path.join(ROOT, row["raw_path"])
-        if not os.path.exists(path) or sha256_file(path) != row["raw_sha256"]:
-            mismatched.append(row["name"])
-    add(2, "raw analyser output altered between measuring and scoring",
-        True, {"digest_mismatches": mismatched, "checked": len(measurement["repositories"])})
+        files = [(row["raw_path"], row["raw_sha256"])]
+        if row.get("normalize", {}).get("raw_path"):
+            files.append((row["normalize"]["raw_path"], row["normalize"].get("raw_sha256")))
+        for relative, recorded in files:
+            checked += 1
+            path = os.path.join(root, relative)
+            if not os.path.exists(path) or sha256_file(path) != recorded:
+                mismatched.append({"repo": row["name"], "file": relative})
+    return _outcome(
+        2, "raw analyser output altered between measuring and scoring",
+        NOT_RUN if checked == 0 else _found(mismatched),
+        {"digest_mismatches": mismatched, "checked": checked})
 
-    # 3 — unsupported cases quietly dropped.
+
+def check_refusal_records(ground_truth):
+    """3 — out-of-scope and refused cases left out of the ground truth."""
     missing = [name for name, gt in ground_truth["repos"].items()
                if not any(r["classification"] in ("UNSUPPORTED", "SAFE_REFUSAL")
                           for r in gt["route_declarations"] + gt["orm_declarations"])]
-    add(3, "unsupported and refused cases omitted from ground truth",
-        True, {"repositories_with_none": missing,
-               "note": "a repository whose ground truth contains no out-of-scope and no "
-                       "refusal record would be reporting only the cases that work"})
+    return _outcome(
+        3, "unsupported and refused cases omitted from ground truth",
+        NOT_RUN if not ground_truth["repos"] else _found(missing),
+        {"repositories_with_none": missing,
+         "note": "a repository whose ground truth contains no out-of-scope and no "
+                 "refusal record would be reporting only the cases that work"})
 
-    # 4 — a false negative relabelled as out of scope.
+
+def check_declared_rules(subset, ground_truth):
+    """4 — a miss reclassified as out of scope under a rule nobody declared."""
     valid = {e["id"] for e in subset["out_of_scope"]["entries"]} | {"OUT-9", "OUT-10"}
     valid_refusal = {e["id"] for e in subset["safe_refusal"]["entries"]}
-    bad = []
+    bad, examined = [], 0
     for name, gt in ground_truth["repos"].items():
         for record in gt["route_declarations"] + gt["orm_declarations"]:
-            if record["classification"] == "UNSUPPORTED" and record["rule"] not in valid:
-                bad.append({"repo": name, "id": record["id"], "rule": record["rule"]})
-            if record["classification"] == "SAFE_REFUSAL" and record["rule"] not in valid_refusal:
-                bad.append({"repo": name, "id": record["id"], "rule": record["rule"]})
-    add(4, "a miss reclassified as out of scope without a declared rule",
-        True, {"records_citing_an_undeclared_rule": bad})
+            if record["classification"] == "UNSUPPORTED":
+                examined += 1
+                if record["rule"] not in valid:
+                    bad.append({"repo": name, "id": record["id"], "rule": record["rule"]})
+            if record["classification"] == "SAFE_REFUSAL":
+                examined += 1
+                if record["rule"] not in valid_refusal:
+                    bad.append({"repo": name, "id": record["id"], "rule": record["rule"]})
+    return _outcome(
+        4, "a miss reclassified as out of scope without a declared rule",
+        NOT_RUN if examined == 0 else _found(bad),
+        {"records_citing_an_undeclared_rule": bad, "examined": examined})
 
-    # 5 — the denominator quietly changed.
+
+def _scored(results):
+    """Repositories that were actually scored, not merely listed."""
+    return {name: repo for name, repo in results.items() if repo.get("status") == "OK"}
+
+
+def check_denominators(ground_truth, results):
+    """5 — the recall denominator quietly changed."""
     drift = []
-    for name, repo in results.items():
+    scored = _scored(results)
+    for name, repo in scored.items():
         declared = sum(1 for r in ground_truth["repos"][name]["route_declarations"]
                        if r["classification"] == "IN_SCOPE")
-        scored = repo["routes"]["metrics"]["recall_denominator"]
-        if declared != scored:
-            drift.append({"repo": name, "in_scope_records": declared, "recall_denominator": scored})
-    add(5, "recall denominator not equal to the in-scope record count",
-        True, {"drift": drift})
+        denominator = repo["routes"]["metrics"]["recall_denominator"]
+        if declared != denominator:
+            drift.append({"repo": name, "in_scope_records": declared,
+                          "recall_denominator": denominator})
+    return _outcome(
+        5, "recall denominator not equal to the in-scope record count",
+        NOT_RUN if not scored else _found(drift), {"drift": drift})
 
-    # 6 — a false positive hidden in an unexamined bucket.
+
+def check_queries_accounted(results):
+    """6 — a false positive hidden in an unexamined bucket."""
     unaccounted = []
-    for name, repo in results.items():
+    scored = _scored(results)
+    for name, repo in scored.items():
         q = repo["queries"]
         total = q["source_confirmed"] + len(q["source_contradicted"]) + q["source_unverifiable_count"]
         if total != q["produced"]:
             unaccounted.append({"repo": name, "produced": q["produced"], "accounted": total})
-    add(6, "produced edges not fully accounted for",
-        True, {"unaccounted": unaccounted,
-               "note": "every Queries edge must land in confirmed, contradicted or "
-                       "unverifiable; unverifiable is reported, never discarded"})
+    return _outcome(
+        6, "produced edges not fully accounted for",
+        NOT_RUN if not scored else _found(unaccounted),
+        {"unaccounted": unaccounted,
+         "note": "every Queries edge must land in confirmed, contradicted or "
+                 "unverifiable; unverifiable is reported, never discarded"})
 
-    # 7 — a difficult repository dropped from the corpus.
+
+def check_corpus_coverage(corpus, results):
+    """7 — a difficult repository dropped from the corpus or left unscored.
+
+    A repository counts as scored only if it was: one listed in the results
+    with a status of MISSING or ANALYSIS_FAILED was not.
+    """
     declared_names = {r["name"] for r in corpus["repositories"]}
-    scored_names = set(results)
+    scored_names = set(_scored(results))
     required = {n for names in corpus["coverage_requirements"].values() for n in names}
-    add(7, "a corpus entry removed or left unscored",
-        True, {"declared": sorted(declared_names), "scored": sorted(scored_names),
-               "missing_from_results": sorted(declared_names - scored_names),
-               "coverage_entries_unscored": sorted(required - scored_names)})
+    missing = sorted(declared_names - scored_names)
+    unscored = sorted(required - scored_names)
+    return _outcome(
+        7, "a corpus entry removed or left unscored",
+        _found(missing + unscored),
+        {"declared": sorted(declared_names), "scored": sorted(scored_names),
+         "missing_from_results": missing, "coverage_entries_unscored": unscored})
 
-    # 8 — an empty run passing for a clean one.
-    empty = [row["name"] for row in measurement["repositories"]
-             if row["status"] == "OK"
-             and (row["measurements"]["files_analysed"] == 0
-                  or row["measurements"]["backend_routes"] + row["measurements"]["client_calls"] == 0)]
-    add(8, "a repository that produced nothing scoring as if it succeeded",
-        True, {"repositories_with_no_observations": empty})
 
-    # 9 — falsified metadata.
-    live = run("rustc", "--version")[1]
-    add(9, "benchmark metadata that does not describe the run",
-        True, {"rustc_recorded": measurement["toolchain"]["rustc"],
-               "rustc_now": live,
-               "agree": live == measurement["toolchain"]["rustc"],
-               "cartograph_commit": measurement["toolchain"]["cartograph_commit"]})
+def check_empty_runs(measurement):
+    """8 — a repository that produced nothing scoring as if it succeeded."""
+    ok = [row for row in measurement["repositories"] if row["status"] == "OK"]
+    empty = [row["name"] for row in ok
+             if row["measurements"]["files_analysed"] == 0
+             or row["measurements"]["backend_routes"] + row["measurements"]["client_calls"] == 0]
+    return _outcome(
+        8, "a repository that produced nothing scoring as if it succeeded",
+        NOT_RUN if not ok else _found(empty),
+        {"repositories_with_no_observations": empty})
 
-    # 10 — scored against the wrong revision.
-    wrong = []
+
+def check_toolchain(measurement, live):
+    """9 — benchmark metadata that does not describe the run.
+
+    The toolchain the measurement recorded must be the one scoring sees, so
+    scoring happens where measuring did. `live` is `rustc --version` now, or
+    None when it could not be read.
+    """
+    recorded = measurement["toolchain"]["rustc"]
+    if live is None:
+        status = ERROR
+    else:
+        status = PASSED if live == recorded else VIOLATION
+    return _outcome(
+        9, "benchmark metadata that does not describe the run", status,
+        {"rustc_recorded": recorded, "rustc_now": live, "agree": live == recorded,
+         "cartograph_commit": measurement["toolchain"]["cartograph_commit"]})
+
+
+def check_revisions(corpus, mirror):
+    """10 — scored against a revision other than the pinned one."""
+    wrong, unreadable = [], []
     for entry in corpus["repositories"]:
         head = revision_of(os.path.join(mirror, entry["name"]))
-        if head != entry["commit"]:
+        if head is None:
+            unreadable.append(entry["name"])
+        elif head != entry["commit"]:
             wrong.append({"repo": entry["name"], "expected": entry["commit"], "actual": head})
-    add(10, "evaluation run against a revision other than the pinned one",
-        True, {"mismatched": wrong})
+    status = VIOLATION if wrong else ERROR if unreadable else PASSED
+    return _outcome(
+        10, "evaluation run against a revision other than the pinned one", status,
+        {"mismatched": wrong, "unreadable": unreadable})
 
-    return checks
+
+def adversarial_checks(corpus, subset, subset_path, ground_truth, measurement, mirror, results,
+                       integrity):
+    """All ten checks, in order."""
+    code, rustc = run("rustc", "--version")
+    return [
+        check_scoring_inputs(integrity, ground_truth, subset_path),
+        check_raw_outputs(measurement),
+        check_refusal_records(ground_truth),
+        check_declared_rules(subset, ground_truth),
+        check_denominators(ground_truth, results),
+        check_queries_accounted(results),
+        check_corpus_coverage(corpus, results),
+        check_empty_runs(measurement),
+        check_toolchain(measurement, rustc if code == 0 and rustc else None),
+        check_revisions(corpus, mirror),
+    ]
+
+
+def summarize(checks):
+    """{outcome: [attack numbers]} for every outcome, plus whether all passed."""
+    summary = {status: [c["attack"] for c in checks if c["status"] == status]
+               for status in (PASSED, VIOLATION, ERROR, NOT_RUN)}
+    summary["all_passed"] = len(summary[PASSED]) == len(checks) == 10
+    return summary
+
+
+# How an evaluation written before outcomes were recorded is read: each check's
+# own evidence, by the criterion that check now applies. The `detected` field
+# those files carry was always true and is not consulted.
+_RECORDED_CRITERIA = {
+    1: lambda d: d.get("inputs_match_commit", d.get("working_tree_matches_commit")) is True,
+    2: lambda d: d["digest_mismatches"] == [],
+    3: lambda d: d["repositories_with_none"] == [],
+    4: lambda d: d["records_citing_an_undeclared_rule"] == [],
+    5: lambda d: d["drift"] == [],
+    6: lambda d: d["unaccounted"] == [],
+    7: lambda d: d["missing_from_results"] == [] and d["coverage_entries_unscored"] == [],
+    8: lambda d: d["repositories_with_no_observations"] == [],
+    9: lambda d: d["agree"] is True,
+    10: lambda d: d["mismatched"] == [],
+}
+
+
+def recorded_outcome(check):
+    """The outcome a recorded check supports: its own, or one read from its evidence."""
+    if "status" in check:
+        return check["status"]
+    criterion = _RECORDED_CRITERIA.get(check["attack"])
+    if criterion is None:
+        return ERROR
+    try:
+        return PASSED if criterion(check["detail"]) else VIOLATION
+    except (KeyError, TypeError):
+        return ERROR
 
 
 def main():
@@ -806,9 +951,12 @@ def main():
     checks = adversarial_checks(
         corpus, subset, args.subset, ground_truth, measurement, args.mirror, results, integrity
     )
+    summary = summarize(checks)
 
     document = {
-        "schema": "cartograph.benchmark-result/1",
+        # /2: each adversarial check records its outcome in `status`, and the
+        # always-true `detected` field of /1 is gone.
+        "schema": "cartograph.benchmark-result/2",
         "milestone": "M07",
         "status": "INTERNAL — methodology is not yet stable; these numbers are not for publication",
         "pass": measurement["pass"],
@@ -819,10 +967,20 @@ def main():
         "denominators": subset["denominators"],
         "repositories": results,
         "adversarial_checks": checks,
+        "adversarial_summary": summary,
     }
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     json.dump(document, open(args.out, "w", encoding="utf-8"), indent=2, sort_keys=True)
     print(f"wrote {args.out}", file=sys.stderr)
+
+    # The result is written either way, so a failed run's evidence can be read;
+    # it is only a pass if every check ran and found nothing.
+    if not summary["all_passed"]:
+        print(f"adversarial checks did not all pass: {len(summary[PASSED])} passed; "
+              f"violation {summary[VIOLATION]}, error {summary[ERROR]}, "
+              f"not run {summary[NOT_RUN]}", file=sys.stderr)
+        return 1
+    print(f"adversarial checks: {len(summary[PASSED])} of 10 passed", file=sys.stderr)
     return 0
 
 
