@@ -7,6 +7,18 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — a stack overflow on deep syntax trees
+
+`cartograph` aborted with a stack overflow on Windows while analysing PostHog
+at the benchmark corpus commit. Two of its files declare TypeScript unions of
+about 1,300 members, which tree-sitter nests 1,300 levels deep, and both
+extractors walked the tree recursively — more than 1.5 MiB of stack, where
+Windows gives the main thread 1 MiB. The TypeScript and Python walks, and the
+flattening of `+` chains in both, now keep their pending work on the heap, so
+depth no longer costs stack on any platform. Extraction is unchanged: `parse`
+output is byte-identical before and after across all seven corpus
+repositories, and `match` output identical apart from its timing field.
+
 ### Added — M11 Slice 2, the desktop shell and repository lifecycle
 
 Tauri v2 + React 19 + Vite. **No Sigma.js**: the graph view is the next slice,
