@@ -147,7 +147,7 @@ export default defineConfig({
         items: [
           { text: 'Overview', link: '/' },
           { text: 'Install and commands (v0.1.0)', link: '/releases/v0.1.0' },
-          { text: 'Command-line reference (v0.1.0)', link: '/development/cli' },
+          { text: 'Command-line reference', link: '/development/cli' },
         ],
       },
       {
