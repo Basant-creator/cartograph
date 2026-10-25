@@ -18,9 +18,22 @@ distinct values:
 | 0.90 | 1,737 | static import resolution (1,443) · route matcher, parameter bound (294) |
 | 0.80 | 11,810 | ORM resolution (11,754) · route matcher, variable aligned (56) |
 | 0.784 | 416 | route matcher, undeclared-method factor applied |
-| 0.72 | 63 | route matcher, wildcard suffix |
-| 0.65 | 8 | route matcher, further weakened |
+| 0.72 | 63 | route matcher, parameters bound, method undeclared |
+| 0.65 | 8 | route matcher, trailing wildcard |
 | 0.64 | 218 | route matcher, undeclared method + partial |
+
+> **Correction (M17 traceability review).** This table previously labelled
+> 0.72 "route matcher, wildcard suffix" and 0.65 "route matcher, further
+> weakened". The first was wrong and the second imprecise. In
+> [`matching.rs`](../../crates/cartograph-resolver/src/matching.rs),
+> `confidence_for` gives a trailing-wildcard match the prior 0.65 when the
+> method is exact, and multiplies any prior by `UNDECLARED_METHOD_FACTOR`, 0.8,
+> when a method is undeclared on either side. 0.72 is therefore a
+> parameter-bound match, 0.90, with an undeclared method; a wildcard match with
+> an undeclared method would score 0.52, which does not occur in the corpus.
+> [`results/dataset.json`](results/dataset.json) agrees: every 0.72 and 0.65
+> edge has a declared client method, so the undeclared method behind 0.72 is the
+> server's. The edge counts are unchanged.
 
 This has three consequences that the methodology must respect rather than
 paper over:
