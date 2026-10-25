@@ -181,6 +181,9 @@ fn categorise(error: &ureq::Error) -> TransportError {
         // `ureq` reserves for a connector chain that gave up -- so mapping the
         // whole variant to `Read` would tell a user their provider replied
         // badly when in fact it was never reached.
+        //
+        // So does a name that does not resolve: see `is_failed_lookup`.
+        ureq::Error::Io(io) if is_failed_lookup(io) => TransportError::Connect,
         ureq::Error::Io(io) => match io.kind() {
             std::io::ErrorKind::ConnectionRefused
             | std::io::ErrorKind::ConnectionAborted
@@ -197,6 +200,39 @@ fn categorise(error: &ureq::Error) -> TransportError {
         // A reply began and could not be read to the end.
         _ => TransportError::Read,
     }
+}
+
+/// Whether `io` is a name lookup that failed.
+///
+/// `ureq`'s resolver passes std's lookup error through as `Io`, so a name that
+/// does not resolve never reaches the `HostNotFound` arm: `ureq` keeps that
+/// variant for a lookup that succeeded with no address. std gives a failed
+/// lookup no `ErrorKind` of its own -- `Uncategorized`, which stable Rust cannot
+/// name -- so it is recognised by what std produces on each platform, and
+/// nothing else is mistaken for one.
+fn is_failed_lookup(io: &std::io::Error) -> bool {
+    if cfg!(windows) {
+        is_winsock_lookup_failure(io.raw_os_error())
+    } else {
+        is_getaddrinfo_failure(io)
+    }
+}
+
+/// Windows: std wraps `WSAGetLastError()`. 11001 to 11004 are
+/// `WSAHOST_NOT_FOUND`, `WSATRY_AGAIN`, `WSANO_RECOVERY` and `WSANO_DATA`, which
+/// only name resolution returns.
+fn is_winsock_lookup_failure(code: Option<i32>) -> bool {
+    matches!(code, Some(11001..=11004))
+}
+
+/// Elsewhere: std's `cvt_gai` reports a `getaddrinfo` failure with no OS error
+/// code and this message. `EAI_SYSTEM` is the exception: it carries a real
+/// `errno`, and is classified by its kind like any other.
+fn is_getaddrinfo_failure(io: &std::io::Error) -> bool {
+    io.raw_os_error().is_none()
+        && io
+            .to_string()
+            .starts_with("failed to lookup address information")
 }
 
 impl Transport for UreqTransport {
@@ -305,6 +341,104 @@ mod tests {
             .expect_err("nothing serves port 1");
 
         assert_eq!(error, TransportError::Connect);
+    }
+
+    /// The `io::Error` this platform's std gives a lookup that fails.
+    fn failed_lookup() -> std::io::Error {
+        if cfg!(windows) {
+            // WSAHOST_NOT_FOUND, from `WSAGetLastError`: what a lookup of an
+            // unresolvable name returned on Windows 11.
+            std::io::Error::from_raw_os_error(11001)
+        } else {
+            // `cvt_gai`'s message. Its kind is `Uncategorized`, which stable
+            // Rust cannot construct; the kind is not what identifies it.
+            std::io::Error::other("failed to lookup address information: Name or service not known")
+        }
+    }
+
+    #[test]
+    fn a_name_that_does_not_resolve_maps_to_connect() {
+        // `.invalid` is reserved never to resolve (RFC 6761), so this asks the
+        // system resolver and nothing else: no address is returned and no
+        // socket is opened. It used to map to `Read`, telling the user their
+        // provider's reply could not be read when it was never reached.
+        let transport = UreqTransport::new();
+
+        let error = transport
+            .post_json("https://cartograph-dns-check.invalid/", &[], b"{}")
+            .expect_err("an .invalid name does not resolve");
+
+        assert_eq!(error, TransportError::Connect);
+    }
+
+    #[test]
+    fn a_failed_lookup_is_classified_as_connect() {
+        assert_eq!(
+            categorise(&ureq::Error::Io(failed_lookup())),
+            TransportError::Connect
+        );
+        // A lookup that succeeds with no address is ureq's own variant.
+        assert_eq!(
+            categorise(&ureq::Error::HostNotFound),
+            TransportError::Connect
+        );
+    }
+
+    #[test]
+    fn only_the_winsock_lookup_codes_are_lookup_failures() {
+        for code in 11001..=11004 {
+            assert!(is_winsock_lookup_failure(Some(code)), "{code}");
+        }
+        // WSAECONNRESET, WSAETIMEDOUT, WSAECONNREFUSED, WSAEHOSTUNREACH, and
+        // the codes either side of the range.
+        for code in [10054, 10060, 10061, 10065, 11000, 11005] {
+            assert!(!is_winsock_lookup_failure(Some(code)), "{code}");
+        }
+        assert!(!is_winsock_lookup_failure(None));
+    }
+
+    #[test]
+    fn only_stds_getaddrinfo_message_is_a_lookup_failure() {
+        assert!(is_getaddrinfo_failure(&std::io::Error::other(
+            "failed to lookup address information: Temporary failure in name resolution"
+        )));
+        assert!(!is_getaddrinfo_failure(&std::io::Error::other(
+            "the stream ended early"
+        )));
+        // An error carrying an OS code is classified by its kind instead,
+        // which is what `EAI_SYSTEM` produces.
+        assert!(!is_getaddrinfo_failure(&std::io::Error::from_raw_os_error(
+            104
+        )));
+    }
+
+    #[test]
+    fn the_io_failures_around_a_lookup_keep_their_classification() {
+        use std::io::{Error, ErrorKind};
+        let io = |error: Error| categorise(&ureq::Error::Io(error));
+
+        assert_eq!(
+            io(Error::from(ErrorKind::ConnectionRefused)),
+            TransportError::Connect
+        );
+        assert_eq!(
+            io(Error::from(ErrorKind::TimedOut)),
+            TransportError::Timeout
+        );
+        // A reply that broke off is still a reply that could not be read, and
+        // so is any failure nothing identifies as a lookup.
+        assert_eq!(
+            io(Error::from(ErrorKind::ConnectionReset)),
+            TransportError::Read
+        );
+        assert_eq!(
+            io(Error::from(ErrorKind::UnexpectedEof)),
+            TransportError::Read
+        );
+        assert_eq!(
+            io(Error::other("the stream ended early")),
+            TransportError::Read
+        );
     }
 
     #[test]

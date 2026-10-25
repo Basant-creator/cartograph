@@ -208,6 +208,33 @@ jobs:
       - name: Deep syntax through the binary
         run: cargo test -p cartograph-cli --test deep_syntax
 
+  # How the one network client classifies a failure depends on what the
+  # platform's std reports, and a name that does not resolve reports
+  # differently on Windows (a Winsock code) than elsewhere (a getaddrinfo
+  # message). The Linux job runs these tests too; this runs them where the
+  # misclassification was found.
+  windows-transport-errors:
+    name: transport errors · windows-latest
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pinned Rust toolchain
+        run: rustup show
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-windows-transport-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-windows-transport-
+
+      - name: Transport classification tests
+        run: cargo test -p cartograph-ask --lib ureq_transport
+
   npm-wrapper:
     name: npm wrapper
     runs-on: ubuntu-latest
