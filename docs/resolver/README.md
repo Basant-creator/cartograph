@@ -1,73 +1,146 @@
 # The resolver
 
-> **Status: design only.** `cartograph-resolver` is an empty crate. This
-> documents the frozen design the M03–M06 implementations must satisfy.
-> **M03 and M04 have landed**: observations are canonicalised
-> ([canonical-routes.md](canonical-routes.md)) and then matched into evidenced
-> `HttpCall` edges ([matching.md](matching.md)). Template evaluation (M05) and
-> ORM resolution (M06) do not exist.
->
-> Both sides' inputs now exist: M01 produces TypeScript call sites, template
-> structure and HTTP observations; M02 produces Python route observations,
-> HTTP observations and f-string structure
-> ([parser architecture](../architecture/parser.md)). **Nothing is resolved
-> yet** — no path is canonicalised and no observation is matched to another.
+`cartograph-resolver` turns the parser's per-file observations into evidenced,
+cross-language edges: a TypeScript client call to the Python handler that serves
+it, that handler to the model it uses, and the model to its table. It is the
+subsystem the project exists for. The
+[technical writeup](../writeup/technical-writeup.md#1-resolver-design) explains
+its design in full, alongside what was measured about it.
 
-The single subsystem that justifies the project. Pipeline:
+## Pipeline
 
-```
-AST extraction → HTTP call extraction → string analysis     (frontend, M01/M05)
-route extraction → normalization                              (backend, M02/M03)
-        └────────────── JOIN on canonical route ─────────────┘         (M04)
-route matching → confidence scoring → ORM resolution → graph edge   (M04/M06)
+```text
+TypeScript ─► HTTP call observations ─► symbolic URL values ─┐
+                                                             ├─► canonical route ─► match ─► HttpCall
+Python ────► route declarations ─► served path ──────────────┘
+Python ────► model classes ─► table names ─► model uses ─► OrmAccess, Queries
+TypeScript ─► component ─► hook ─► client function ─► Call
 ```
 
-## Frontend extraction (M01, M05)
+Every stage is deterministic. No language model participates
+([ADR-0007](../adr/ADR-0007-no-llm-graph-construction.md)), and the resolver
+never guesses a URL, symbol, route, table or dependency (RULE 010): a value it
+cannot determine stays unknown (RULE 009), and evidence that is not enough
+produces no edge.
 
-Locate `fetch`, `axios.*`, generated client calls; extract method, URL
-expression, location. URLs are constructed, not written:
+## What is implemented
+
+| Stage | Module | Design |
+|---|---|---|
+| Canonical routes | `canonical.rs`, `normalize.rs` | [canonical-routes.md](canonical-routes.md) |
+| Dynamic URL evaluation | `symbolic.rs`, `evaluator.rs`, `dynamic.rs` | [dynamic-urls.md](dynamic-urls.md) |
+| Cross-language matching, and the `HttpCall` edge | `matching.rs`, `edge.rs` | [matching.md](matching.md) |
+| Router prefix composition | `routers.rs` | [routers.md](routers.md) |
+| Import resolution | `imports.rs` | [imports.md](imports.md) |
+| ORM resolution: `OrmAccess` and `Queries` | `orm.rs` | [orm.md](orm.md) |
+| Client wrapper tracing: `Call` edges | `client_trace.rs` | [client-tracing.md](client-tracing.md) |
+| Per-file cache for ORM access resolution, keyed on what each resolution read | `access_cache.rs`, `dependencies.rs` | [ADR-0014](../adr/ADR-0014-m10-scope-reconciliation.md) |
+
+### What the resolver reads
+
+The parser ([parser architecture](../architecture/parser.md)) supplies the
+observations. On the client side, in TypeScript and TSX:
+
+- `fetch(...)`;
+- `.get`, `.post` and the other method calls on an object named `axios`,
+  `client`, `http` or `api`;
+- a request configuration object whose `url` or `endpoint` key holds a path —
+  the shape a generated OpenAPI client uses. A `path` key is deliberately not
+  read, because frontend router tables use it.
+
+An Express- or Hono-style registration such as `app.get('/x', handler)` is
+recognised only so that it is **not** mistaken for a client request; it is not
+extracted as a route.
+
+On the server side, in Python:
+
+- FastAPI and Flask decorators with a literal path — `@app.get("/x")`,
+  `@router.post(...)`, `@bp.route("/x", methods=[...])`;
+- Django URL-conf entries, `path(...)` and `re_path(...)`;
+- `APIRouter(prefix=...)` declarations and `include_router(child, prefix=...)`
+  mountings, which compose the path a route is actually served on.
+
+### URLs are constructed, not written
 
 ```ts
 const BASE = '/api/v1';
-const url = `${BASE}/orders/${orderId}`;   // → /api/v1/orders/{*}
+const url = `${BASE}/orders/${orderId}`;   // → /api/v1/orders/{unknown}
 ```
 
-Restricted abstract interpretation over string values: constant propagation
-through module scope, template concatenation, symbolic unknowns. Unresolvable
-segments become `{unknown}` and lower confidence. **The resolver never guesses
-a value** (RULE 010). No language model participates (ADR-0007).
+A restricted abstract interpretation evaluates each client URL into a symbolic
+value, propagating constants through module scope and across files. A segment it
+cannot determine stays `{unknown}`: aligned against a route parameter it can
+still match, at a lower prior than a fully static match, and a client whose
+leading prefix is unknown is refused rather than aligned by guesswork. An
+environment variable is named and never read.
 
-## Backend extraction (M02)
+### Canonical routes, and matching
 
-FastAPI decorators, Flask `@app.route`, Django `urlpatterns`, Express routers:
-path pattern, method, handler symbol, location.
+Server parameter dialects — `/orders/:id`, `/orders/{id}`, `/orders/<int:id>` —
+share the shape `/orders/{*}`, and a path converter becomes a wildcard. A client
+URL never declares a parameter. Matching compares a client's canonical route
+against an index of served routes, requires at least one shared static segment,
+and **produces no edge when the evidence is ambiguous**.
 
-## Normalization (M03)
+### Confidence
 
-`/orders/:id` ≡ `/orders/{id}` ≡ `/orders/<int:id>` ≡ `/orders/${id}` →
-`(POST, /orders/{*})`. Where an OpenAPI specification exists it is ground truth
-and inference is skipped.
+Each edge carries a confidence that is an **uncalibrated prior selected by
+evidence class**, not a probability. The values, what selects them, and what M08
+measured about them are set out in the writeup's
+[confidence section](../writeup/technical-writeup.md#confidence-a-prior-chosen-by-evidence-class)
+and [calibration section](../writeup/technical-writeup.md#3-calibration).
 
-## ORM resolution (M06)
+## Example output
 
-SQLAlchemy and Django ORM first; handler → service → repository → model →
-table. SQLModel, Prisma, Drizzle, raw SQL later. Quality over breadth.
+One complete chain from the M07 corpus — Apache Airflow at its pinned commit
+`9b43d6abc0fc` — from a generated client function to a database table:
 
-## Target output (M09)
-
+```text
+enqueueConnectionTest                  client function in the generated client
+  │ HttpCall   0.98  route-matcher    at …/openapi-gen/requests/services.gen.ts:834
+  ▼
+enqueue_connection_test                handler
+  │ OrmAccess  0.80  orm-resolution   at …/core_api/routes/public/connections.py:427
+  ▼
+ConnectionTestRequest                  model
+  │ Queries    0.80  orm-resolution   at …/airflow/models/connection_test.py:82
+  ▼
+connection_test_request                table
 ```
-$ cartograph trace CheckoutButton
-CheckoutButton
-│ HTTP POST /api/orders   0.94 template-eval
-▼
-create_order()
-│ ORM Order(...)          0.97 orm-resolve
-▼
-orders — table
-```
 
-## The remediation subsystems (M07)
+Every edge, confidence and location above is a record in
+[`benchmarks/m08/results/dataset.json`](../../benchmarks/m08/results/dataset.json),
+produced by the accepted engine (`cartograph-m07`, `2514f77`) and labelled true by
+M08's independent reader. The same chain, with the same confidences, is recorded
+in [`benchmarks/acceptance/m07-acceptance-evaluation.json`](../../benchmarks/acceptance/m07-acceptance-evaluation.json).
 
-- [imports.md](imports.md) — a name, the module it came from, and the declaration.
-- [routers.md](routers.md) — the path a route is actually served on.
-- [client-tracing.md](client-tracing.md) — a component, through its client wrapper, to the request.
+## Known limitations
+
+- **TypeScript, TSX and Python only.** No other language is parsed.
+- **No JavaScript backends.** Express, Hono and similar route registrations are
+  not extracted as routes.
+- **No OpenAPI confirmation.** A specification is not read as evidence, though
+  the domain model has a provenance and prior reserved for it.
+- **ORM: SQLAlchemy and Django only**, and only direct accesses inside a handler —
+  `Model(...)` and `Model.objects.…`. An access made through a service or
+  repository layer is not followed; `session.query(Model)` and `select(Model)`
+  are not recognised; raw SQL is not linked to models; SQLModel and other ORMs
+  are not recognised ([orm.md](orm.md)).
+- **Django `re_path` patterns** are recorded but not normalised, so they do not
+  match.
+- **Prefix composition follows named routers only.** An
+  `include_router(items.router)` attribute, or a prefix applied by a
+  project-local helper, does not compose.
+- **Class-based views and DRF routers** are not modelled, nor are deployment-time
+  URL rewrites.
+- **Bounded traversal.** Call following stops after four hops (`MAX_CALL_HOPS`),
+  and re-export following after four (`MAX_REEXPORT_HOPS`).
+- **A client URL with an absolute host never matches**, even when it addresses
+  this service, and two services in one repository declaring the same route are
+  reported as ambiguous rather than told apart.
+- **Resolution is syntactic and import-based.** No language server is
+  consulted.
+
+The findings measured on real repositories, including those still unsolved, are
+in the [technical writeup](../writeup/technical-writeup.md#failures) and
+[m07-remediation.md](../benchmarks/m07-remediation.md).
