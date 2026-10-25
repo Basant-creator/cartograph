@@ -1,22 +1,47 @@
 //! Cross-language resolution.
 //!
-//! # Status: canonicalisation and matching (M03–M04)
+//! The subsystem the product exists for. It turns the parser's per-file
+//! observations into evidenced edges across the stack: a client call to the
+//! handler that serves it (`HttpCall`), a component to the client function that
+//! issues its request (`Call`), a handler to the model it uses (`OrmAccess`),
+//! and a model to its table (`Queries`).
 //!
-//! This is the subsystem the product exists for, and it is built in stages.
-//! The pipeline now runs end to end for the HTTP boundary:
+//! # The pipeline
 //!
 //! ```text
-//! RouteObservation   ─┐                        ┌─► RouteIndex ─┐
-//!                     ├─► normalize ─► Canonical│               ├─► match ─► edge
-//! HttpCallObservation ─┘                        └─► client ─────┘
+//! TypeScript ─► HTTP call observations ─► symbolic URL values ─┐
+//!                                                              ├─► canonical route ─► match ─► HttpCall
+//! Python ────► route declarations ─► served path ──────────────┘
+//! Python ────► model classes ─► table names ─► model uses ─► OrmAccess, Queries
+//! TypeScript ─► component ─► hook ─► client function ─► Call
 //! ```
 //!
-//! - **M03, [`normalize`]** — one observation in, one canonical form out. A
-//!   per-observation transformation that relates nothing to anything.
-//! - **M04, [`matching`] and [`edge`]** — the first semantic join. A client
-//!   observation is compared against indexed backend routes, classified, and
-//!   only then, only if accepted, turned into an `HttpCall` edge carrying
-//!   confidence, provenance and evidence.
+//! - [`canonical`] and [`normalize`] — one observation in, one canonical form
+//!   out. A per-observation transformation that relates nothing to anything.
+//! - [`symbolic`], [`evaluator`] and [`dynamic`] — a client URL evaluated into
+//!   a [`SymbolicValue`], with constants propagated through module scope and
+//!   across files. Whatever cannot be determined stays unknown.
+//! - [`routers`] — the path a route is actually served on, composed from router
+//!   prefixes and `include_router` mountings.
+//! - [`matching`] and [`edge`] — the first semantic join. A client observation
+//!   is compared against indexed backend routes, classified, and only then,
+//!   only if accepted, turned into an `HttpCall` edge carrying confidence,
+//!   provenance and evidence.
+//! - [`imports`] — a name at a use site resolved through its own import
+//!   statement to the declaration it refers to, following re-exports for a
+//!   bounded number of hops.
+//! - [`client_trace`] — the client wrapper kept on the path. An `HttpCall` edge
+//!   is sourced at the function that issues the request, and the components and
+//!   hooks above it reach that function through `Call` edges resolved by import,
+//!   for a bounded number of hops.
+//! - [`orm`] — `SQLAlchemy` and Django model classes to their tables, and
+//!   handlers to the models they use.
+//! - [`access_cache`] and [`dependencies`] — the per-file cache for ORM access
+//!   resolution, keyed on what each resolution actually read.
+//!
+//! Every edge this crate creates carries one of three provenances: route
+//! matching for `HttpCall`, static import resolution for `Call`, and ORM
+//! resolution for `OrmAccess` and `Queries`.
 //!
 //! # What keeps the join honest
 //!
@@ -25,20 +50,24 @@
 //! literal is possible-not-verified and can never be exact. An undeclared
 //! method is never read as GET. **Ambiguity produces no edge** — several
 //! plausible routes is an unanswered question, and answering it arbitrarily
-//! would poison every confidence number downstream. An unresolved template
-//! prefix is refused outright until M05 evaluates the constant.
+//! would poison every confidence number downstream. A client whose leading
+//! prefix is still unknown after evaluation is refused outright rather than
+//! aligned by guesswork.
 //!
-//! Confidence values are the specification's **uncalibrated priors**; M08
-//! replaces them with values fitted against a labelled benchmark. No accuracy
-//! claim rests on them before then.
+//! Confidence values are the specification's **uncalibrated priors**, chosen
+//! by evidence class ([`priors`]). M08 measured them against independently
+//! labelled edges and did not replace them: where they could be measured they
+//! understate accuracy, and none may be read as a probability. See
+//! `docs/writeup/technical-writeup.md`.
 //!
 //! # What normalisation will not do
 //!
 //! - **Infer parameters from values.** `/orders/123` keeps `123` as a static
 //!   segment. Only route syntax declares a parameter.
-//! - **Evaluate templates.** `` `${BASE}/orders` `` yields an unknown leading
-//!   segment, not a resolved prefix, and a client whose prefix is unknown is
-//!   refused for matching rather than aligned by guesswork. Evaluation is M05.
+//! - **Evaluate templates.** Evaluation happens before normalisation, in
+//!   [`dynamic`]. A segment evaluation could not determine stays unknown — so
+//!   `` `${BASE}/orders` `` with an undetermined `BASE` keeps an unknown leading
+//!   segment rather than a resolved prefix.
 //! - **Interpret regular expressions.** A Django `re_path` pattern is
 //!   [`NormalizationStatus::Unsupported`] with its raw form retained. "Cannot
 //!   safely normalise" is a usable fact; "probably this route" is not.
@@ -46,10 +75,26 @@
 //!   to fill with `GET`.
 //! - **Collapse trailing slashes.** `/orders` and `/orders/` stay distinct.
 //!
-//! Still to come: template evaluation (M05), ORM resolution (M06), and
-//! LSP-backed symbol resolution when a milestone genuinely needs it — M04 did
-//! not, because route matching joins observations rather than symbols. No
-//! language model participates in any of it, ever: see RULE 007 and
+//! # What this crate does not do
+//!
+//! - **Resolve JavaScript backend routes.** Routes come from Python
+//!   declarations. The parser recognises an Express- or Hono-style registration
+//!   only so that it is not mistaken for a client request; it is never a route.
+//! - **Confirm a match against an `OpenAPI` specification.** The domain model
+//!   reserves a provenance and a prior for that; nothing here produces either.
+//! - **Follow an ORM access through intermediate layers.** Only direct
+//!   `Model(...)` and `Model.objects.…` accesses inside a handler are resolved.
+//!   A service or repository layer between a handler and a model is not
+//!   followed, `session.query(Model)` and `select(Model)` are not recognised,
+//!   and raw SQL is not linked to models.
+//! - **Compose every prefix.** An `include_router` whose child is an attribute
+//!   rather than a name, or a prefix applied by a project-local helper, does not
+//!   compose.
+//! - **Resolve symbols through a language server.** Resolution is syntactic and
+//!   import-based. Route matching joins observations rather than symbols, so no
+//!   milestone has yet needed LSP-backed resolution.
+//!
+//! No language model participates in any of it, ever: see RULE 007 and
 //! `docs/adr/ADR-0007-no-llm-graph-construction.md`.
 
 pub mod access_cache;
