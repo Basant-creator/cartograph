@@ -113,6 +113,32 @@ class Compare(unittest.TestCase):
         after["graph"]["edges"][2]["provenance"] = "static-import-resolution"
         self.assertFalse(C.compare(run_document(), after)["identical"])
 
+    def test_renumbering_does_not_mask_a_content_change_elsewhere(self):
+        # One edge dropped, the rest renumbered, and a surviving edge's
+        # confidence changed: both real differences must still be reported.
+        after = run_document()
+        after["graph"]["edges"].pop(0)
+        for i, e in enumerate(after["graph"]["edges"]):
+            e["id"] = i
+        after["graph"]["edges"][-1]["confidence"] = 0.5
+        edges = C.compare(run_document(), after)["edges"]
+        self.assertEqual(
+            sorted(item[1] for item in edges["only_left"]),
+            ["nodejs/src/common/api/router.ts:43", "posthog/api/action.py:7"],
+        )
+        self.assertEqual([item[1] for item in edges["only_right"]], ["posthog/api/action.py:7"])
+        self.assertEqual(edges["only_right"][0][2], 0.5)
+
+    def test_two_runs_are_compared_without_rounding(self):
+        # The six-decimal rounding is the M08 labeller's, and is applied only
+        # against the M08 dataset. Between two engine runs 0.78400004 and
+        # 0.784 are different confidences.
+        after = run_document()
+        after["graph"]["edges"][1]["confidence"] = 0.784
+        report = C.compare(run_document(), after)
+        self.assertFalse(report["identical"])
+        self.assertEqual(report["edges"]["only_left"][0][2], 0.78400004)
+
 
 class AgainstM08(unittest.TestCase):
     def dataset(self, document):

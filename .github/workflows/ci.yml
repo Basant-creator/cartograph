@@ -96,6 +96,25 @@ jobs:
       - name: Validate framework health
         run: python3 agentos/tools/scripts/validate_agentos.py
 
+  # The cross-platform comparison of what two analyser runs produced
+  # (docs/benchmarks/cross-platform-parity.md). It is only worth trusting if it
+  # behaves the same on the platforms it compares.
+  parity-comparison:
+    name: parity comparison · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Edge-comparison tests
+        shell: bash
+        run: |
+          PYTHON=$(command -v python3 || command -v python)
+          "$PYTHON" benchmarks/test_compare_edges.py -v
+
   # The scorer's refusal to score an altered answer key. Its Windows run is
   # the point: the check it replaces passed without running there, because
   # cmd.exe did not understand the shell string it was given.
