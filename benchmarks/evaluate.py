@@ -26,10 +26,17 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 from collections import defaultdict
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Where the committed scoring inputs live, relative to ROOT. Whatever paths
+# the command line names, these are what the files used must match.
+GROUND_TRUTH_DIR = "benchmarks/ground-truth"
+SUBSET_PATH = "benchmarks/supported-subset.json"
+CORPUS_PATH = "benchmarks/corpus.json"
 
 CLASS_DECL = re.compile(r"^\s*class\s+(\w+)\s*[\(:]")
 TABLENAME = re.compile(r"""^\s*__tablename__\s*=\s*["']([^"']+)["']""")
@@ -49,6 +56,95 @@ def sha256_file(path):
         for block in iter(lambda: handle.read(1 << 20), b""):
             h.update(block)
     return h.hexdigest()
+
+
+def run(*argv):
+    """(returncode, stdout) of a command, run without a shell.
+
+    The checks below used `os.popen` with a command string, which hands quoting
+    to the platform's shell. On Windows that is cmd.exe: it does not strip the
+    single quotes `{path!r}` produced, and it has no /dev/null, so git failed on
+    every call, its error went to stderr, and empty stdout read as "no
+    uncommitted changes" and as "no revision". An argument list needs no
+    quoting, so a path with spaces or backslashes reaches git as written.
+    """
+    try:
+        proc = subprocess.run(list(argv), capture_output=True, text=True, check=False)
+    except OSError as exc:
+        return None, str(exc)
+    return proc.returncode, proc.stdout.strip()
+
+
+def verify_scoring_inputs(ground_truth_dir, subset_path, corpus_path, root=ROOT):
+    """Proves the files being scored with are the committed ones, or says why not.
+
+    Ground truth is authored from source before the first pass and committed;
+    scoring against anything else lets the answer key move after the answers
+    are known. So every file the scorer loads is compared with the blob
+    committed at `root`'s HEAD under its canonical path, whatever directory the
+    command line pointed at, and the ground-truth directory must hold exactly
+    the committed set of files - an added or a missing repository is a change
+    to the answer key too.
+
+    `git hash-object --path` hashes a file the way git would store it at that
+    path, applying the repository's line-ending rules, so a checkout's line
+    endings are not mistaken for an edit.
+
+    Fails closed: if git cannot answer, the inputs are unverified, which is
+    reported as a failure rather than as a pass.
+    """
+    problems = []
+    code, commit = run("git", "-C", root, "rev-parse", "--verify", "HEAD")
+    if code != 0 or not commit:
+        return {"verified": False, "reference_commit": None,
+                "problems": [f"cannot read the reference commit in {root}: git rev-parse failed"]}
+
+    def committed_blob(repo_path):
+        code, blob = run("git", "-C", root, "rev-parse", "--verify", "--quiet",
+                         f"HEAD:{repo_path}")
+        return blob if code == 0 and blob else None
+
+    def compare(used, repo_path):
+        expected = committed_blob(repo_path)
+        if expected is None:
+            problems.append(f"{repo_path} is not committed at HEAD")
+            return
+        if not os.path.isfile(used):
+            problems.append(f"{repo_path}: {used} does not exist")
+            return
+        # Absolute, because `git -C` resolves a relative path against `root`
+        # rather than against the directory the scorer was started from.
+        code, actual = run("git", "-C", root, "hash-object", f"--path={repo_path}", "--",
+                           os.path.abspath(used))
+        if code != 0 or not actual:
+            problems.append(f"{repo_path}: could not hash {used}")
+        elif actual != expected:
+            problems.append(f"{repo_path}: {used} differs from the committed file")
+
+    compare(subset_path, SUBSET_PATH)
+    compare(corpus_path, CORPUS_PATH)
+
+    code, listing = run("git", "-C", root, "ls-tree", "--name-only", "HEAD",
+                        f"{GROUND_TRUTH_DIR}/")
+    committed = {os.path.basename(p) for p in listing.splitlines() if p.endswith(".json")} \
+        if code == 0 else set()
+    if code != 0 or not committed:
+        problems.append(f"no ground truth is committed under {GROUND_TRUTH_DIR} at HEAD")
+    used = {os.path.basename(p) for p in glob.glob(os.path.join(ground_truth_dir, "*.json"))}
+    for name in sorted(used - committed):
+        problems.append(f"{GROUND_TRUTH_DIR}/{name} is used but not committed")
+    for name in sorted(committed - used):
+        problems.append(f"{GROUND_TRUTH_DIR}/{name} is committed but missing from {ground_truth_dir}")
+    for name in sorted(used & committed):
+        compare(os.path.join(ground_truth_dir, name), f"{GROUND_TRUTH_DIR}/{name}")
+
+    return {"verified": not problems, "reference_commit": commit, "problems": problems}
+
+
+def revision_of(checkout):
+    """The commit a checkout is at, or None when git cannot say."""
+    code, head = run("git", "-C", checkout, "rev-parse", "HEAD")
+    return head if code == 0 and head else None
 
 
 class Source:
@@ -488,7 +584,8 @@ def metrics(tp, fp, fn):
 
 # ── Checks against gaming the benchmark ──────────────────────────────
 
-def adversarial_checks(corpus, subset, subset_path, ground_truth, measurement, mirror, results):
+def adversarial_checks(corpus, subset, subset_path, ground_truth, measurement, mirror, results,
+                       integrity):
     """The ten attacks in PART 23, each as a check that runs every time.
 
     Where an attack cannot be detected mechanically, the check says so rather
@@ -500,20 +597,19 @@ def adversarial_checks(corpus, subset, subset_path, ground_truth, measurement, m
         checks.append({"attack": number, "description": attack,
                        "detected": bool(ok), "detail": detail})
 
-    # 1 — a ground-truth relationship removed after the fact.
-    tracked = os.popen(
-        f"git -C {ROOT!r} status --porcelain benchmarks/ground-truth benchmarks/corpus.json "
-        f"benchmarks/supported-subset.json"
-    ).read().strip()
+    # 1 — a ground-truth relationship removed after the fact. Scoring does not
+    # start unless `verify_scoring_inputs` passed, so a run that reaches this
+    # point records the proof rather than discovering a failure.
     add(1, "ground-truth or scope edited after measurement",
         True,
-        {"working_tree_matches_commit": tracked == "",
-         "uncommitted": tracked.splitlines(),
+        {"inputs_match_commit": integrity["verified"],
+         "reference_commit": integrity["reference_commit"],
+         "problems": integrity["problems"],
          "ground_truth_sha256": {n: sha256_file(p) for n, p in ground_truth["_paths"].items()},
          "supported_subset_sha256": sha256_file(subset_path),
-         "note": "the digests are recorded with the results; an edit changes them, "
-                 "and git shows whether the files still match the commit that "
-                 "predates the first pass"})
+         "note": "every ground-truth, scope and corpus file used was compared with the "
+                 "blob committed at the reference commit before scoring began; a "
+                 "difference, an extra file or a missing file stops the run"})
 
     # 2 — analyser output edited to agree with ground truth.
     mismatched = []
@@ -589,7 +685,7 @@ def adversarial_checks(corpus, subset, subset_path, ground_truth, measurement, m
         True, {"repositories_with_no_observations": empty})
 
     # 9 — falsified metadata.
-    live = os.popen("rustc --version").read().strip()
+    live = run("rustc", "--version")[1]
     add(9, "benchmark metadata that does not describe the run",
         True, {"rustc_recorded": measurement["toolchain"]["rustc"],
                "rustc_now": live,
@@ -599,7 +695,7 @@ def adversarial_checks(corpus, subset, subset_path, ground_truth, measurement, m
     # 10 — scored against the wrong revision.
     wrong = []
     for entry in corpus["repositories"]:
-        head = os.popen(f"git -C {os.path.join(mirror, entry['name'])!r} rev-parse HEAD 2>/dev/null").read().strip()
+        head = revision_of(os.path.join(mirror, entry["name"]))
         if head != entry["commit"]:
             wrong.append({"repo": entry["name"], "expected": entry["commit"], "actual": head})
     add(10, "evaluation run against a revision other than the pinned one",
@@ -617,6 +713,16 @@ def main():
     parser.add_argument("--mirror", required=True)
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
+
+    # Before anything is read or scored: a result computed against an altered
+    # answer key is not a result, so none is written.
+    integrity = verify_scoring_inputs(args.ground_truth, args.subset, args.corpus)
+    if not integrity["verified"]:
+        print("refusing to score: the scoring inputs do not match the committed ones",
+              file=sys.stderr)
+        for problem in integrity["problems"]:
+            print(f"  {problem}", file=sys.stderr)
+        return 1
 
     corpus = json.load(open(args.corpus, encoding="utf-8"))
     subset = json.load(open(args.subset, encoding="utf-8"))
@@ -698,7 +804,7 @@ def main():
         }
 
     checks = adversarial_checks(
-        corpus, subset, args.subset, ground_truth, measurement, args.mirror, results
+        corpus, subset, args.subset, ground_truth, measurement, args.mirror, results, integrity
     )
 
     document = {
