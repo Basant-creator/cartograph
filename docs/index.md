@@ -55,9 +55,8 @@ cartograph .
 
 Then follow one relationship across the stack with `cartograph trace <symbol>`.
 The [v0.1.0 release notes](releases/v0.1.0.md) cover installation, and
-[the command-line reference](development/cli.md) documents the commands as they
-stood at v0.1.0. `blast` and `diff` came later; `cartograph --help` lists every
-current command.
+[the command-line reference](development/cli.md) documents every command,
+including `blast` and `diff`.
 
 ## What ships today
 

@@ -1,15 +1,17 @@
 # The `cartograph` command line
 
-The CLI is one of three planned clients of the same core graph API. It holds no
-analysis logic: every command composes library calls, and one shared pipeline
-runs the same sequence for all of them, so two commands cannot report on
+The CLI is one of three clients of the same core graph API, beside the desktop
+application, MAP, and the MCP server, `cartograph-mcp`. It holds no analysis
+logic: every command composes library calls, and one shared pipeline runs the
+same sequence for all of them, so two commands cannot report on
 differently-built graphs.
 
-Version 0.1.0 · milestone M09.
+Version 0.1.0. This page describes the commands in this tree. For the binary you
+have, `cartograph --help` and `cartograph <command> --help` are authoritative.
 
 ---
 
-## The four questions
+## The questions
 
 The surface is deliberately small. Each command answers one question a
 developer actually asks.
@@ -19,6 +21,8 @@ developer actually asks.
 | Can I analyse this repository? | `cartograph .` |
 | What did Cartograph find? | `cartograph .` |
 | Why does Cartograph believe a relationship exists? | `cartograph trace <symbol>` |
+| What depends on this, across the stack? | `cartograph blast <symbol>` |
+| What did a change do to the architecture? | `cartograph diff <before> <after>` |
 | Can another tool consume the result? | `--json` on any of them |
 
 `parse`, `normalize` and `match` expose the pipeline's individual stages and
@@ -74,6 +78,11 @@ cartograph trace CheckoutButton --json
 | `--path <PATH>` | `.` | Repository to analyse. |
 | `--max-depth <N>` | `10` | Hops to follow before stopping. |
 
+**Only symbols in the graph can be traced.** The graph holds the symbols that
+take part in a resolved relationship. A function the parser saw but the
+resolver connected to nothing is not in it, and naming one exits `5`; run
+`cartograph .` to see what was found.
+
 **Ambiguity is not resolved by choosing.** If two symbols share a name, both are
 listed and the command exits `6`. Qualify the name with its file to pick one —
 `file.py:name`. The file part matches whole path segments from the right, so
@@ -88,6 +97,55 @@ read as one chain — `A → B → C` when the graph says `A → B` and `A → C
 edge, the depth limit, or a cycle. Where the chain stops in a file that also
 contains refused observations, those are listed and labelled as being in the
 same file rather than attributed to the symbol.
+
+### `cartograph blast <symbol>`
+
+Reports what depends on a symbol, across language boundaries: the inverse of
+`trace`. It walks the graph *inward* to the named symbol, and lists everything
+that can reach it through a dependency relationship, with the confidence of the
+best-supported route and one representative route per artefact.
+
+```bash
+cartograph blast orders
+cartograph blast --path ../repo Order
+cartograph blast 'app/models.py:Order' --json
+```
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--path <PATH>` | `.` | Repository to analyse. |
+
+A route's confidence is its **weakest step**, not the product of its steps
+([ADR-0018](../adr/ADR-0018-blast-radius-confidence.md)). Naming, qualification
+and ambiguity work exactly as for `trace`: a symbol not in the graph exits `5`,
+and an ambiguous one lists its candidates and exits `6`.
+
+### `cartograph diff <before> <after>`
+
+Compares two checked-out trees and reports what changed architecturally:
+relationships added, removed and changed, and how many were unchanged.
+
+```bash
+git worktree add --detach ../before main    # main's tree, beside this one
+cartograph diff ../before .
+cartograph diff ../before . --json
+cartograph diff ../before . --markdown
+```
+
+| Flag | Meaning |
+|---|---|
+| `--json` | The comparison as a JSON document. |
+| `--markdown` | The architecture review as Markdown, for a pull-request comment. This is what the pull-request review workflow posts. |
+
+It takes **two directories, not two revisions**. Cartograph has no Git
+dependency, so the caller decides how the trees came to exist, and `git worktree
+add` is the usual answer. The two analyses are matched by stable
+`(kind, name, file)` identity, never by node id, so a relationship that merely
+moved down its file is not reported as churn. A rename is reported as a removal
+and an addition: matching renames would mean guessing from similarity.
+
+It exits `0` whether or not anything changed. The counts, not the exit code,
+say what changed.
 
 ### `cartograph parse <path>`
 
@@ -116,7 +174,7 @@ binary was built from, and its target triple. One `key value` pair per line, so
 
 | Flag | Meaning |
 |---|---|
-| `--json` | Emit a JSON document instead of a human summary. Valid after the subcommand or before the path. |
+| `--json` | Emit a JSON document instead of a human summary. Valid after the subcommand, or before the path when there is no subcommand: `cartograph --json .`, `cartograph trace --json <symbol>`. |
 | `--strict` | Exit `7` when some files could not be parsed. Off by default. |
 | `-v`, `-vv` | Increase log verbosity. Logs always go to stderr. |
 | `-h`, `--help` | Usage. |
@@ -138,8 +196,8 @@ Scripts branch on these. They are a contract; changing one is a breaking change.
 | `2` | usage | Unknown flag, missing argument, bad value. Also `cartograph` with no arguments. |
 | `3` | input | The path is missing, unreadable, or holds no supported source. |
 | `4` | analysis | The analyser failed. A defect or an environment problem, not user error. |
-| `5` | not found | `trace` was given a symbol the graph does not contain. |
-| `6` | ambiguous | `trace` was given a symbol matching more than one node. Nothing was chosen. |
+| `5` | not found | `trace` or `blast` was given a symbol the graph does not contain. |
+| `6` | ambiguous | `trace` or `blast` was given a symbol matching more than one node. Nothing was chosen. |
 | `7` | partial | Some files could not be parsed, and `--strict` asked for that to be a failure. |
 
 `1` is deliberately unused. It is what a panicking process produces, so an
@@ -174,6 +232,11 @@ Under `--json`, stdout is a single JSON document — on success *and* on failure
 so a consumer never has to decide whether to parse. A failing `--json` run
 emits `{"schema_version": …, "command": …, "errors": [...]}`.
 
+**The one exception is a usage error.** A command line that cannot be parsed —
+an unknown flag, a missing argument, `--json` placed before a subcommand — is
+rejected by the argument parser before any output mode exists. It exits `2`,
+reports on stderr, and writes nothing to stdout, `--json` or not.
+
 In text mode a failure writes nothing to stdout, so a pipe receives nothing.
 
 **Errors** are reported as `error[<slug>]: <sentence>`, optionally followed by
@@ -196,6 +259,9 @@ five lines; that is what `head` does by design, and it exits `0`.
 
 ## What is not here
 
-`watch`, `serve`, `diff`, `ask`, `mcp` and any desktop UI are later milestones.
-A command that exists but does not work is a documentation defect, so nothing
-is present as a stub.
+There is no `watch`, `serve` or `ask` command. ASK — an AI explanation of
+evidence Cartograph has already derived — exists only in the desktop
+application, and only when enabled for a repository. The MCP server is its own
+binary, `cartograph-mcp`, and MAP is the desktop application; neither is a
+subcommand of `cartograph`. A command that exists but does not work is a
+documentation defect, so nothing is present as a stub.

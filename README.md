@@ -2,10 +2,12 @@
 
 **Compute the architecture. Prove the relationships.**
 
-Cartograph is a local-first architectural intelligence engine. It derives a
-symbol-level, cross-language graph of a software system from source code,
-language semantics, HTTP boundaries, database schemas and Git history — and
-shows the evidence behind every edge it draws.
+Cartograph is a local-first architectural intelligence engine. It reads a
+repository's TypeScript, TSX and Python source — symbols, imports, calls, HTTP
+requests and route declarations, and ORM models with the tables they name — and
+derives from it a symbol-level, cross-language graph of the system, showing the
+evidence behind every edge it draws. It reads only the source files under the
+path it is given: not Git history, and not a database or its migrations.
 
 > **Status: milestones M00–M16 accepted; M17, the public launch, in progress.**
 > Version 0.1.0. One analysis core serves a CLI, a desktop application, an MCP
