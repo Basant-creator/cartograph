@@ -1,0 +1,16 @@
+{
+  "name": "cartograph-docs",
+  "private": true,
+  "description": "The Cartograph documentation site. Built with VitePress from the Markdown in this directory.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview",
+    "check-links": "node .vitepress/check-links.mjs"
+  },
+  "devDependencies": {
+    "vitepress": "1.6.4"
+  }
+}

@@ -8,19 +8,36 @@
 | Field | Value |
 |---|---|
 | Last accepted milestone | **M16 — ASK** (accepted 2026-09-22) |
-| Status | M00–M16 **ACCEPTED**; M17 unlocked, no code written, no branch |
+| Status | M00–M16 **ACCEPTED**; M17 **in progress, not accepted** |
 | Branch | `main` |
 | Next permitted milestone | M17 — **unlocked**; it is the final milestone |
 | Last accepted checkpoint | `cartograph-m16` (immutable, commit `c9cde1b`) |
 | Spec | Frozen V3, August 2026 |
+| Version | 0.1.0 — the move to 1.0.0 is M17's release step and has not happened |
 
-> `current_milestone` in the ledger reads **M16** and stays there.
+> `current_milestone` in the ledger reads **M17**, with `status: IN_PROGRESS`.
 > `cartograph_cli::version::MILESTONE` is asserted equal to it by a unit test,
 > so the two must move together — in a pull request, because the constant is
-> product code and a bookkeeping commit may not touch it. The pair advanced in
-> PR #67, which landed before the checkpoint: tagging a commit whose
-> `cartograph version` still reported M15 would have mislabelled it. M17 is
-> unlocked by `next_allowed_milestone`, exactly as M16 was at M15's acceptance.
+> product code and a bookkeeping commit may not touch it. The ledger said the
+> pair advances in the first M17 pull request; it did not move in #69–#72 and
+> advances in PR #73. Unlike M11–M16, it moves while the milestone is still
+> being built, so `cartograph version` reports M17 before all of M17 exists.
+> The milestone identifier is not the semantic version: that stays 0.1.0
+> until the v1.0 release step.
+
+## M17 — in progress
+
+Scope, from [M17-public-launch.md](../milestones/M17-public-launch.md): v1.0
+stable, the technical writeup, and a VitePress documentation site.
+
+- **Technical writeup** — merged in #70, after the traceability remediation in
+  #69 that traced every figure it uses to a committed artifact.
+- **Documentation site** — PR #73, built from `docs/` and link-checked on every
+  pull request. Not merged and not deployed: GitHub Pages is not yet enabled
+  for the repository.
+- **v1.0 stable** — not begun. The workspace version is 0.1.0 and no `v1.0.0`
+  or `cartograph-m17` tag exists.
+- #71 and #72 corrected stale resolver documentation.
 
 ## What exists
 
