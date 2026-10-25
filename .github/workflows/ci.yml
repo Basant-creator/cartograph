@@ -96,6 +96,25 @@ jobs:
       - name: Validate framework health
         run: python3 agentos/tools/scripts/validate_agentos.py
 
+  # The scorer's refusal to score an altered answer key. Its Windows run is
+  # the point: the check it replaces passed without running there, because
+  # cmd.exe did not understand the shell string it was given.
+  benchmark-scorer:
+    name: benchmark scorer · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scoring-input integrity tests
+        shell: bash
+        run: |
+          PYTHON=$(command -v python3 || command -v python)
+          "$PYTHON" benchmarks/test_evaluate.py -v
+
   release-build:
     name: release binary · ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -154,6 +173,40 @@ jobs:
           # A closed pipe is not a crash.
           "$BIN" "$FIXTURES" 2>/dev/null | head -2 >/dev/null
           echo "release binary verified on ${{ matrix.os }}"
+
+  # Windows gives the main thread a 1 MiB stack, against 8 MiB on Linux and
+  # macOS, so a defect that costs stack per syntax-tree level shows up there
+  # first: the recursive extractor walk aborted on PostHog's 1,300-member
+  # TypeScript unions on Windows only. These tests pin the iterative walk on
+  # the platform that found the defect, on every pull request.
+  windows-deep-syntax:
+    name: deep syntax trees · windows-latest
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pinned Rust toolchain
+        run: rustup show
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-windows-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-windows-
+
+      # The parser suite, including deep_nesting.rs, which analyses inputs
+      # several times deeper than PostHog's on a thread sized like Windows'
+      # main thread.
+      - name: Parser tests
+        run: cargo test -p cartograph-parser
+
+      # The shipped executable on Windows' real 1 MiB main thread.
+      - name: Deep syntax through the binary
+        run: cargo test -p cartograph-cli --test deep_syntax
 
   npm-wrapper:
     name: npm wrapper

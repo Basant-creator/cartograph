@@ -126,23 +126,70 @@ struct Walker<'a> {
     exported_names: Vec<String>,
 }
 
+/// One unit of pending work for [`Walker::walk`].
+///
+/// The walk used to recurse, one native stack frame per syntax-tree level.
+/// tree-sitter nests `a or b or c`, `a + b + c` and `A | B | C` as deeply as
+/// they are long, and the TypeScript extractor's identical walk aborted
+/// `cartograph` on Windows' 1 MiB main-thread stack over a union in
+/// `PostHog`. The pending work now lives on the heap.
+///
+/// Steps run in exactly the order the recursion ran them: a node's own
+/// extraction, then its subtree in source order, then whatever the node opened
+/// is closed.
+enum Step<'t> {
+    /// Extract from a node, then run whatever steps that schedules.
+    Visit(Node<'t>),
+    /// Visit each named child of a node, in source order.
+    Children(Node<'t>),
+    /// Close the scope a named function or class opened.
+    LeaveScope,
+    /// Close a `+` chain already recorded as one concatenation.
+    LeaveConcat,
+}
+
 impl Walker<'_> {
-    fn walk(&mut self, node: Node<'_>) {
+    /// Walks the tree under `root` in pre-order, without recursion.
+    fn walk(&mut self, root: Node<'_>) {
+        let mut stack = vec![Step::Visit(root)];
+        let mut next = Vec::new();
+        while let Some(step) = stack.pop() {
+            match step {
+                Step::Visit(node) => {
+                    self.visit(node, &mut next);
+                    // `next` is in execution order; the stack runs last-first.
+                    stack.extend(next.drain(..).rev());
+                }
+                Step::Children(node) => {
+                    let mut cursor = node.walk();
+                    let children: Vec<_> = node.named_children(&mut cursor).collect();
+                    stack.extend(children.into_iter().rev().map(Step::Visit));
+                }
+                Step::LeaveScope => {
+                    self.scope.pop();
+                }
+                Step::LeaveConcat => self.concat_depth -= 1,
+            }
+        }
+    }
+
+    /// Extracts from one node and schedules, in order, what follows it.
+    fn visit<'t>(&mut self, node: Node<'t>, next: &mut Vec<Step<'t>>) {
         match node.kind() {
             "import_statement" | "import_from_statement" => {
                 self.extract_import(node);
                 return; // specifier strings belong to the Import, not to `strings`
             }
             "decorated_definition" => {
-                self.extract_decorated(node);
+                self.extract_decorated(node, next);
                 return;
             }
             "function_definition" => {
-                self.extract_function(node, Vec::new());
+                self.extract_function(node, Vec::new(), next);
                 return;
             }
             "class_definition" => {
-                self.extract_class(node, Vec::new());
+                self.extract_class(node, Vec::new(), next);
                 return;
             }
             "assignment" => self.extract_assignment(node),
@@ -157,21 +204,13 @@ impl Walker<'_> {
             // arm only fires when a concatenation was actually recorded.
             "binary_operator" if self.concat_depth == 0 && self.extract_concatenation(node) => {
                 self.concat_depth += 1;
-                self.walk_children(node);
-                self.concat_depth -= 1;
+                next.push(Step::Children(node));
+                next.push(Step::LeaveConcat);
                 return;
             }
             _ => {}
         }
-        self.walk_children(node);
-    }
-
-    fn walk_children(&mut self, node: Node<'_>) {
-        let mut cursor = node.walk();
-        let children: Vec<_> = node.named_children(&mut cursor).collect();
-        for child in children {
-            self.walk(child);
-        }
+        next.push(Step::Children(node));
     }
 
     fn text(&self, node: Node<'_>) -> String {
@@ -271,7 +310,7 @@ impl Walker<'_> {
 
     // ── Symbols and decorators ───────────────────────────────────────
 
-    fn extract_decorated(&mut self, node: Node<'_>) {
+    fn extract_decorated<'t>(&mut self, node: Node<'t>, next: &mut Vec<Step<'t>>) {
         let mut decorators = Vec::new();
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
@@ -285,9 +324,9 @@ impl Walker<'_> {
 
         if let Some(definition) = node.child_by_field_name("definition") {
             match definition.kind() {
-                "function_definition" => self.extract_function(definition, decorators),
-                "class_definition" => self.extract_class(definition, decorators),
-                _ => self.walk(definition),
+                "function_definition" => self.extract_function(definition, decorators, next),
+                "class_definition" => self.extract_class(definition, decorators, next),
+                _ => next.push(Step::Visit(definition)),
             }
         }
     }
@@ -307,9 +346,14 @@ impl Walker<'_> {
         }
     }
 
-    fn extract_function(&mut self, node: Node<'_>, decorators: Vec<String>) {
+    fn extract_function<'t>(
+        &mut self,
+        node: Node<'t>,
+        decorators: Vec<String>,
+        next: &mut Vec<Step<'t>>,
+    ) {
         let Some(name_node) = node.child_by_field_name("name") else {
-            self.walk_children(node);
+            next.push(Step::Children(node));
             return;
         };
         let name = self.text(name_node);
@@ -325,14 +369,19 @@ impl Walker<'_> {
         self.push_symbol(kind, &name, is_async, decorators, node);
         self.scope.push(name);
         if let Some(body) = node.child_by_field_name("body") {
-            self.walk_children(body);
+            next.push(Step::Children(body));
         }
-        self.scope.pop();
+        next.push(Step::LeaveScope);
     }
 
-    fn extract_class(&mut self, node: Node<'_>, decorators: Vec<String>) {
+    fn extract_class<'t>(
+        &mut self,
+        node: Node<'t>,
+        decorators: Vec<String>,
+        next: &mut Vec<Step<'t>>,
+    ) {
         let Some(name_node) = node.child_by_field_name("name") else {
-            self.walk_children(node);
+            next.push(Step::Children(node));
             return;
         };
         let name = self.text(name_node);
@@ -340,9 +389,9 @@ impl Walker<'_> {
         self.push_symbol_with_bases(SymbolKind::Class, &name, false, decorators, bases, node);
         self.scope.push(name);
         if let Some(body) = node.child_by_field_name("body") {
-            self.walk_children(body);
+            next.push(Step::Children(body));
         }
-        self.scope.pop();
+        next.push(Step::LeaveScope);
     }
 
     /// Is this assignment a class-body attribute?
@@ -921,26 +970,34 @@ impl Walker<'_> {
         true
     }
 
+    /// The operands of a `+` chain, left to right.
+    ///
+    /// A chain nests as deeply as it is long, so this keeps its own stack for
+    /// the same reason [`Walker::walk`] does: the right operand is pushed
+    /// first so the left one is taken first.
     fn flatten_concat(&self, node: Node<'_>, parts: &mut Vec<ConcatPart>, has_string: &mut bool) {
-        if is_plus_operator(node, self.source) {
-            if let (Some(left), Some(right)) = (
-                node.child_by_field_name("left"),
-                node.child_by_field_name("right"),
-            ) {
-                self.flatten_concat(left, parts, has_string);
-                self.flatten_concat(right, parts, has_string);
-                return;
+        let mut pending = vec![node];
+        while let Some(node) = pending.pop() {
+            if is_plus_operator(node, self.source) {
+                if let (Some(left), Some(right)) = (
+                    node.child_by_field_name("left"),
+                    node.child_by_field_name("right"),
+                ) {
+                    pending.push(right);
+                    pending.push(left);
+                    continue;
+                }
             }
-        }
-        if node.kind() == "string" {
-            *has_string = true;
-            parts.push(ConcatPart::Literal {
-                value: string_content(node, self.source),
-            });
-        } else {
-            parts.push(ConcatPart::Expression {
-                source: self.text(node),
-            });
+            if node.kind() == "string" {
+                *has_string = true;
+                parts.push(ConcatPart::Literal {
+                    value: string_content(node, self.source),
+                });
+            } else {
+                parts.push(ConcatPart::Expression {
+                    source: self.text(node),
+                });
+            }
         }
     }
 }

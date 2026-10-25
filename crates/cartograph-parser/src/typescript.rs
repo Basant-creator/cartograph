@@ -128,7 +128,6 @@ impl TypeScriptExtractor {
             analysis: &mut analysis,
             scope: Vec::new(),
             concat_depth: 0,
-            export: ExportContext::None,
             deferred_exports: Vec::new(),
         };
         walker.walk(root);
@@ -172,11 +171,34 @@ struct Walker<'a> {
     scope: Vec<String>,
     /// > 0 while inside a `+` chain already represented by a Concatenation.
     concat_depth: u32,
-    /// Export context for the immediate declaration being visited.
-    export: ExportContext,
     /// `export { a, b as c }` / `export default ident` clauses, applied to
     /// module-scope symbols after the walk.
     deferred_exports: Vec<(String, ExportStatus)>,
+}
+
+/// One unit of pending work for [`Walker::walk`].
+///
+/// The walk used to recurse, one native stack frame per syntax-tree level, so
+/// a deep tree overflowed the stack. Depth is not exotic: tree-sitter nests a
+/// union as `union_type(union_type('a', 'b'), 'c')`, and `PostHog`'s source
+/// catalog declares one of about 1,300 members, which aborted `cartograph`
+/// on Windows' 1 MiB main-thread stack. The pending work now lives on the
+/// heap.
+///
+/// Steps run in exactly the order the recursion ran them: a node's own
+/// extraction, then its subtree in source order, then whatever the node opened
+/// is closed. Pushing a node's steps reversed onto a last-in-first-out stack
+/// is what keeps that order.
+enum Step<'t> {
+    /// Extract from a node with the export context of a wrapping `export`,
+    /// then run whatever steps that extraction schedules.
+    Visit(Node<'t>, ExportContext),
+    /// Visit each named child of a node, in source order.
+    Children(Node<'t>),
+    /// Close the scope a named function or class opened.
+    LeaveScope,
+    /// Close a `+` chain already recorded as one concatenation.
+    LeaveConcat,
 }
 
 /// Is this argument a handler rather than a request option?
@@ -212,9 +234,37 @@ fn is_handler_argument(node: &Node<'_>) -> bool {
 }
 
 impl Walker<'_> {
-    fn walk(&mut self, node: Node<'_>) {
-        let export = std::mem::replace(&mut self.export, ExportContext::None);
+    /// Walks the tree under `root` in pre-order, without recursion.
+    fn walk(&mut self, root: Node<'_>) {
+        let mut stack = vec![Step::Visit(root, ExportContext::None)];
+        let mut next = Vec::new();
+        while let Some(step) = stack.pop() {
+            match step {
+                Step::Visit(node, export) => {
+                    self.visit(node, export, &mut next);
+                    // `next` is in execution order; the stack runs last-first.
+                    stack.extend(next.drain(..).rev());
+                }
+                Step::Children(node) => {
+                    let mut cursor = node.walk();
+                    let children: Vec<_> = node.named_children(&mut cursor).collect();
+                    stack.extend(
+                        children
+                            .into_iter()
+                            .rev()
+                            .map(|child| Step::Visit(child, ExportContext::None)),
+                    );
+                }
+                Step::LeaveScope => {
+                    self.scope.pop();
+                }
+                Step::LeaveConcat => self.concat_depth -= 1,
+            }
+        }
+    }
 
+    /// Extracts from one node and schedules, in order, what follows it.
+    fn visit<'t>(&mut self, node: Node<'t>, export: ExportContext, next: &mut Vec<Step<'t>>) {
         match node.kind() {
             "import_statement" => {
                 self.extract_import(node);
@@ -223,20 +273,20 @@ impl Walker<'_> {
                 return;
             }
             "export_statement" => {
-                self.extract_export(node);
+                self.extract_export(node, next);
                 return;
             }
             "pair" => self.extract_module_aliases(node),
             "function_declaration" | "generator_function_declaration" => {
-                self.extract_function(node, SymbolKind::Function, export);
+                self.extract_function(node, SymbolKind::Function, export, next);
                 return;
             }
             "class_declaration" | "abstract_class_declaration" => {
-                self.extract_class(node, export);
+                self.extract_class(node, export, next);
                 return;
             }
             "method_definition" => {
-                self.extract_function(node, SymbolKind::Method, ExportContext::None);
+                self.extract_function(node, SymbolKind::Method, ExportContext::None, next);
                 return;
             }
             "interface_declaration" => {
@@ -277,22 +327,14 @@ impl Walker<'_> {
             // the arm only fires when a concatenation was actually recorded.
             "binary_expression" if self.concat_depth == 0 && self.extract_concatenation(node) => {
                 self.concat_depth += 1;
-                self.walk_children(node);
-                self.concat_depth -= 1;
+                next.push(Step::Children(node));
+                next.push(Step::LeaveConcat);
                 return;
             }
             _ => {}
         }
 
-        self.walk_children(node);
-    }
-
-    fn walk_children(&mut self, node: Node<'_>) {
-        let mut cursor = node.walk();
-        let children: Vec<_> = node.named_children(&mut cursor).collect();
-        for child in children {
-            self.walk(child);
-        }
+        next.push(Step::Children(node));
     }
 
     fn text(&self, node: Node<'_>) -> String {
@@ -359,7 +401,7 @@ impl Walker<'_> {
 
     // ── Exports ──────────────────────────────────────────────────────
 
-    fn extract_export(&mut self, node: Node<'_>) {
+    fn extract_export<'t>(&mut self, node: Node<'t>, next: &mut Vec<Step<'t>>) {
         let is_default = has_keyword_child(node, "default");
 
         // `export * from "./queries"` and `export { X } from "./m"` — a barrel
@@ -414,12 +456,12 @@ impl Walker<'_> {
         }
 
         if let Some(declaration) = node.child_by_field_name("declaration") {
-            self.export = if is_default {
+            let export = if is_default {
                 ExportContext::Default
             } else {
                 ExportContext::Exported
             };
-            self.walk(declaration);
+            next.push(Step::Visit(declaration, export));
             return;
         }
 
@@ -455,7 +497,7 @@ impl Walker<'_> {
                     }
                     _ => {}
                 }
-                self.walk(value);
+                next.push(Step::Visit(value, ExportContext::None));
             }
             return;
         }
@@ -481,7 +523,13 @@ impl Walker<'_> {
 
     // ── Symbols ──────────────────────────────────────────────────────
 
-    fn extract_function(&mut self, node: Node<'_>, kind: SymbolKind, export: ExportContext) {
+    fn extract_function<'t>(
+        &mut self,
+        node: Node<'t>,
+        kind: SymbolKind,
+        export: ExportContext,
+        next: &mut Vec<Step<'t>>,
+    ) {
         let name = node
             .child_by_field_name("name")
             .map(|n| self.text(n))
@@ -494,19 +542,24 @@ impl Walker<'_> {
                 }
             });
         if name.is_empty() {
-            self.walk_children(node);
+            next.push(Step::Children(node));
             return;
         }
 
         self.push_symbol(kind, &name, has_keyword_child(node, "async"), export, node);
         self.scope.push(name);
         if let Some(body) = node.child_by_field_name("body") {
-            self.walk(body);
+            next.push(Step::Visit(body, ExportContext::None));
         }
-        self.scope.pop();
+        next.push(Step::LeaveScope);
     }
 
-    fn extract_class(&mut self, node: Node<'_>, export: ExportContext) {
+    fn extract_class<'t>(
+        &mut self,
+        node: Node<'t>,
+        export: ExportContext,
+        next: &mut Vec<Step<'t>>,
+    ) {
         let name = node
             .child_by_field_name("name")
             .map(|n| self.text(n))
@@ -519,16 +572,16 @@ impl Walker<'_> {
                 }
             });
         if name.is_empty() {
-            self.walk_children(node);
+            next.push(Step::Children(node));
             return;
         }
 
         self.push_symbol(SymbolKind::Class, &name, false, export, node);
         self.scope.push(name);
         if let Some(body) = node.child_by_field_name("body") {
-            self.walk_children(body);
+            next.push(Step::Children(body));
         }
-        self.scope.pop();
+        next.push(Step::LeaveScope);
     }
 
     fn extract_named_only(&mut self, node: Node<'_>, kind: SymbolKind, export: ExportContext) {
@@ -977,27 +1030,35 @@ impl Walker<'_> {
         true
     }
 
+    /// The operands of a `+` chain, left to right.
+    ///
+    /// A chain nests as deeply as it is long, so this keeps its own stack for
+    /// the same reason [`Walker::walk`] does: the right operand is pushed
+    /// first so the left one is taken first.
     fn flatten_concat(&self, node: Node<'_>, parts: &mut Vec<ConcatPart>, has_string: &mut bool) {
-        if is_plus_expression(node, self.source) {
-            if let (Some(left), Some(right)) = (
-                node.child_by_field_name("left"),
-                node.child_by_field_name("right"),
-            ) {
-                self.flatten_concat(left, parts, has_string);
-                self.flatten_concat(right, parts, has_string);
-                return;
+        let mut pending = vec![node];
+        while let Some(node) = pending.pop() {
+            if is_plus_expression(node, self.source) {
+                if let (Some(left), Some(right)) = (
+                    node.child_by_field_name("left"),
+                    node.child_by_field_name("right"),
+                ) {
+                    pending.push(right);
+                    pending.push(left);
+                    continue;
+                }
             }
-        }
-        match node.kind() {
-            "string" => {
-                *has_string = true;
-                parts.push(ConcatPart::Literal {
-                    value: string_content(node, self.source),
-                });
+            match node.kind() {
+                "string" => {
+                    *has_string = true;
+                    parts.push(ConcatPart::Literal {
+                        value: string_content(node, self.source),
+                    });
+                }
+                _ => parts.push(ConcatPart::Expression {
+                    source: self.text(node),
+                }),
             }
-            _ => parts.push(ConcatPart::Expression {
-                source: self.text(node),
-            }),
         }
     }
 }
