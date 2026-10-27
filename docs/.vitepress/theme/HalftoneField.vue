@@ -6,6 +6,10 @@
 // `field` draws the whole disc in the middle of its box; `dome` centres the
 // disc on the top edge, so only its lower half shows.
 //
+// Content can sit in the field: the dots part around any element in the same
+// section marked `data-clear`. The first time the field is seen, it blooms
+// outward from its centre.
+//
 // Purely presentational: aria-hidden, drawn only while on screen, and still
 // (but still pointer-responsive) under prefers-reduced-motion or `paused`.
 
@@ -32,6 +36,12 @@ const RIPPLE = { waves: 18, speed: 0.0011, depth: 0.2 }
 // The pointer clears dots fully within `inner` px and not at all beyond `outer`.
 const PROBE = { inner: 24, outer: 130 }
 const CROSSHAIR = 8 // half-length of the crosshair arms, px
+// Around a [data-clear] element, dots fade back in over this many px.
+const CLEAR_FALLOFF = 36
+// The first-sight bloom: how long the disc takes to grow to full size, ms.
+const BLOOM_MS = 1600
+
+type Rect = { x: number; y: number; w: number; h: number }
 
 const host = ref<HTMLDivElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
@@ -42,10 +52,55 @@ let height = 0
 let frame = 0
 let visible = false
 let reducedMotion = false
+let clears: Rect[] = []
+let bloomStart = -1
 const pointer = { x: 0, y: 0, active: false }
 const cleanups: Array<() => void> = []
 
 const still = () => reducedMotion || props.paused
+
+/** An element's layout box relative to `ancestor`, ignoring transforms. */
+function layoutRect(el: HTMLElement, ancestor: HTMLElement): Rect | null {
+  let x = 0
+  let y = 0
+  let n: HTMLElement | null = el
+  while (n && n !== ancestor) {
+    x += n.offsetLeft
+    y += n.offsetTop
+    n = n.offsetParent as HTMLElement | null
+  }
+  return n === ancestor ? { x, y, w: el.offsetWidth, h: el.offsetHeight } : null
+}
+
+/** Where the [data-clear] elements of this section sit, relative to the canvas. */
+function measureClears() {
+  const h = host.value
+  const section = h?.offsetParent as HTMLElement | null
+  if (!h || !section) return
+  clears = [...section.querySelectorAll<HTMLElement>('[data-clear]')]
+    .map((el) => layoutRect(el, section))
+    .filter((r): r is Rect => r !== null)
+    .map((r) => ({ ...r, x: r.x - h.offsetLeft, y: r.y - h.offsetTop }))
+}
+
+/** Distance from (x, y) to the nearest clear rect; 0 inside one. */
+function clearDistance(x: number, y: number) {
+  let best = Infinity
+  for (const r of clears) {
+    const dx = Math.max(r.x - x, 0, x - (r.x + r.w))
+    const dy = Math.max(r.y - y, 0, y - (r.y + r.h))
+    best = Math.min(best, Math.hypot(dx, dy))
+  }
+  return best
+}
+
+/** 0 before the field is first seen, easing to 1 as it blooms; 1 when still. */
+function bloom(now: number) {
+  if (still()) return 1
+  if (bloomStart < 0) return 0
+  const t = Math.min(1, (now - bloomStart) / BLOOM_MS)
+  return 1 - Math.pow(1 - t, 3)
+}
 
 const smooth = (a: number, b: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)))
@@ -65,6 +120,7 @@ function resize() {
   c.style.height = `${height}px`
   ctx = c.getContext('2d')
   ctx?.setTransform(dpr, 0, 0, dpr, 0, 0)
+  measureClears()
 }
 
 function draw(time: number) {
@@ -76,7 +132,10 @@ function draw(time: number) {
   const cx = width / 2
   const cy = dome ? 0 : height / 2
   // A dome may fill its box's height; a field keeps its disc a little inside.
-  const radius = dome ? Math.min(width * 0.42, height * 0.98) : Math.min(width, height * 1.25) * 0.47
+  const full = dome ? Math.min(width * 0.42, height * 0.98) : Math.min(width, height * 1.25) * 0.47
+  const grown = bloom(performance.now())
+  if (grown <= 0) return
+  const radius = full * grown
   const moving = !still()
 
   ctx.fillStyle = props.dot
@@ -91,6 +150,7 @@ function draw(time: number) {
       let v = smooth(SHAPE.ringStart, SHAPE.ringFull, r) * (1 - smooth(SHAPE.rimStart, SHAPE.rimEnd, r))
       if (moving) v *= 1 - RIPPLE.depth + RIPPLE.depth * Math.sin(r * RIPPLE.waves - time * RIPPLE.speed)
       if (pointer.active) v *= smooth(PROBE.inner, PROBE.outer, Math.hypot(x - pointer.x, y - pointer.y))
+      if (clears.length) v *= smooth(0, CLEAR_FALLOFF, clearDistance(x, y))
       if (v < SHAPE.cutoff) continue
       const s = v * step * SHAPE.dotSize
       if (v > SHAPE.crossFrom) {
@@ -105,9 +165,11 @@ function draw(time: number) {
   }
   ctx.stroke()
 
-  // Crosshair: on the pointer while it is over the field, else at the centre.
+  // Crosshair: on the pointer while it is over the field, else at the centre;
+  // never over content sitting in a clearing.
   const hx = pointer.active ? pointer.x : cx
-  const hy = pointer.active ? pointer.y : dome ? Math.min(height * 0.42, radius * 0.42) : cy
+  const hy = pointer.active ? pointer.y : dome ? Math.min(height * 0.42, full * 0.42) : cy
+  if (clears.length && clearDistance(hx, hy) < CROSSHAIR) return
   ctx.strokeStyle = props.cross
   ctx.lineWidth = 1.5
   ctx.beginPath()
@@ -121,6 +183,11 @@ function draw(time: number) {
 function loop(time: number) {
   draw(time)
   frame = visible && !still() ? requestAnimationFrame(loop) : 0
+}
+
+/** The field has come into view: start its bloom, once. */
+function seen() {
+  if (bloomStart < 0) bloomStart = performance.now()
 }
 
 /** Redraw once if still; otherwise make sure the animation loop is running. */
@@ -158,10 +225,20 @@ onMounted(() => {
 
   const io = new IntersectionObserver(([entry]) => {
     visible = entry.isIntersecting
+    if (visible) seen()
     wake()
   })
   io.observe(h)
   cleanups.push(() => io.disconnect())
+
+  // Content in a clearing can change size (fonts load, text wraps); remeasure.
+  const section = h.offsetParent as HTMLElement | null
+  const clearing = new ResizeObserver(() => {
+    measureClears()
+    if (still()) draw(0)
+  })
+  section?.querySelectorAll('[data-clear]').forEach((el) => clearing.observe(el))
+  cleanups.push(() => clearing.disconnect())
 
   const move = (e: PointerEvent) => {
     const box = h.getBoundingClientRect()

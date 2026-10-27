@@ -18,6 +18,46 @@ say the launcher is not published and give the build-from-source command,
 What the launcher does is still described. The roadmap's npm row no longer
 names `npx cartograph`: the package name is undecided.
 
+### Changed — the hero is a globe of code, its orbit carrying the benchmarks
+
+The drifting constellation behind the headline read as noise. It is replaced
+by a globe made of code glyphs at the centre of the hero (`GlobeField.vue`):
+
+- **The globe.** It sits in a faint wireframe (rim, equator, two latitudes) so
+  it reads as a sphere. Its characters flicker, and bright bands rain down its
+  face. It spins faster while the page scrolls, then eases back.
+- **Edges to the taglines.** Edges run from its rim to each tagline (the two
+  headline halves, now in opposite corners, and the three lines at the foot).
+  A packet travels each edge, so the globe is the hub of a small graph.
+- **The orbit.** A tilted orbit carries the benchmark figures with their scope
+  ("0.907 HttpCall recall · Airflow"). These are decorative copies; the
+  Measured section states them with their caveats. Labels pass behind the
+  globe, dimmed, and come round the front. A phone shows four of them, kept
+  inside the screen.
+
+Glyphs dim behind the headline, so its contrast holds. The canvas draws only
+while the hero is on screen. Glyphs are grouped by font and colour, so a frame
+takes about 2 ms. Under paused or reduced motion it is one still frame.
+`GraphField.vue` is removed.
+
+### Changed — the governing principle, large, in the middle of the field; "Try it" fills the footer dome
+
+**The field.** The line under the halftone field was small and sat at the
+bottom. It is now set large in the middle of the field, one clause to a
+numbered line, with "the model last, and never in the graph" in the accent
+colour. Its box opens outward from the centre, its edges draw, and then the
+words rise. The field blooms outward from its centre the first time it is
+seen.
+
+**The dome.** The footer's dot dome was decoration with nothing in it. It now
+holds "Try it": the install command with its Copy button, and links to the
+installation page and the command reference. That makes it the one place the
+command appears; it moved there from the principles section.
+
+The dots in both part around the content. `HalftoneField` now leaves a clearing
+around any element in its section marked `data-clear`, and the resting
+crosshair never lands on that content.
+
 ### Added — the site can be built for the root of a domain
 
 GitHub Pages serves the site under `/cartograph/`, and that path was written
