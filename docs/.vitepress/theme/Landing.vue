@@ -11,8 +11,8 @@
 
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { withBase } from 'vitepress'
-import GraphField from './GraphField.vue'
 import HalftoneField from './HalftoneField.vue'
+import HeroMark from './HeroMark.vue'
 import SplitWords from './SplitWords.vue'
 import { counters, cursor, magnetic, marqueeVelocity, reveals, scrollScene } from './motion'
 
@@ -179,7 +179,6 @@ const menuButton = ref<HTMLButtonElement | null>(null)
 const menuOpen = ref(false)
 const scrolled = ref(false)
 const headerHidden = ref(false)
-const heroActive = ref(true)
 const surface = ref(0)
 const principle = ref(0)
 const copied = ref(false)
@@ -242,7 +241,6 @@ onMounted(async () => {
   const onScroll = () => {
     const y = window.scrollY
     scrolled.value = y > 24
-    heroActive.value = y < window.innerHeight * 1.2
     if (!menuOpen.value) {
       if (y > lastY + 6 && y > 160) headerHidden.value = true
       else if (y < lastY - 6) headerHidden.value = false
@@ -346,7 +344,7 @@ onBeforeUnmount(() => {
       <!-- The hero stays pinned while the statement slides up over it. -->
       <div class="cg-stage" data-scroll="top">
         <section class="cg-hero">
-          <GraphField :paused="still" :active="heroActive" />
+          <HeroMark :paused="still" />
           <h1 class="cg-hero-title">
             <span class="cg-hero-left">
               <span class="cg-line"><span style="--d: 0.05s">Compute the</span></span>
@@ -1198,7 +1196,8 @@ a:hover > .cg-button i {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(237, 223, 238, 0.6);
+  /* 0.72, not lower: this line can sit over the mark's discs (5.6:1 there). */
+  color: rgba(237, 223, 238, 0.72);
   animation: cg-fade 1.2s 0.7s var(--cg-ease) backwards;
 }
 
@@ -2375,9 +2374,10 @@ a:hover > .cg-button i {
   opacity: max(0, calc(1 - var(--p, 0) * 4));
 }
 
-.cg-motion .cg-hero :deep(.cg-graph) {
+/* The mark pushes in as it fades, so the hero leaves with some weight. */
+.cg-motion .cg-hero :deep(.hm) {
   opacity: max(0, calc(1 - var(--p, 0) * 1.2));
-  transform: scale(calc(1 + var(--p, 0) * 0.25));
+  transform: scale(calc(1 + var(--p, 0) * 0.3));
 }
 
 /* The manilla and green panels rise and widen into place. */

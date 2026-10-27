@@ -7,6 +7,21 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — the hero's background is Cartograph's own mark
+
+The drifting constellation behind the headline had dozens of small nodes and
+lines, and read as noise. It is replaced by the logo's three nodes and two
+edges, drawn monumentally across the hero as solid discs and heavy strokes, a
+step above the ground. The headline keeps 4.9:1 or better over them.
+
+The mark builds once: the edges draw out of the left node and the nodes land.
+After that it is nearly still. One evidence packet crosses an edge at a time,
+a faint orbit turns, the mark leans slightly toward the pointer, and it pushes
+in as the hero scrolls away. In a portrait hero it is fitted rather than
+cropped, so all three nodes stay in view on a phone. With motion paused or
+reduced it is simply the mark. It is SVG and CSS (`HeroMark.vue`) instead of a
+canvas redrawn every frame, and `GraphField.vue` is removed.
+
 ### Changed — the governing principle, large, in the middle of the field; "Try it" fills the footer dome
 
 **The field.** The line under the halftone field was small and sat at the
