@@ -7,6 +7,24 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — the governing principle, large, in the middle of the field; "Try it" fills the footer dome
+
+**The field.** The line under the halftone field was small and sat at the
+bottom. It is now set large in the middle of the field, one clause to a
+numbered line, with "the model last, and never in the graph" in the accent
+colour. Its box opens outward from the centre, its edges draw, and then the
+words rise. The field blooms outward from its centre the first time it is
+seen.
+
+**The dome.** The footer's dot dome was decoration with nothing in it. It now
+holds "Try it": the install command with its Copy button, and links to the
+installation page and the command reference. That makes it the one place the
+command appears; it moved there from the principles section.
+
+The dots in both part around the content. `HalftoneField` now leaves a clearing
+around any element in its section marked `data-clear`, and the resting
+crosshair never lands on that content.
+
 ### Changed — the home page's step icons build themselves; the field caption is boxed
 
 The three "How it works" icons used to draw all at once. Now each builds in

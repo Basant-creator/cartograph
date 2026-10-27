@@ -275,7 +275,7 @@
 /* Headings, and the footer's wordmark, rise into place word by word. */
 .cg-motion [data-split] .cg-word-in {
   transform: translateY(112%);
-  transition: transform 1.1s var(--cg-ease) calc(var(--w) * 55ms);
+  transition: transform 1.1s var(--cg-ease) calc(var(--split-delay, 0s) + var(--w) * 55ms);
 }
 
 .cg-motion [data-split].is-in .cg-word-in {

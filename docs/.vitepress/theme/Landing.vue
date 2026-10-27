@@ -135,8 +135,12 @@ const principles = [
   },
 ]
 
-const fieldCaption =
-  'Deterministic analysis first. Evidence second. Inference third. The model last, and never in the graph.'
+/** The governing principle, one clause to a line, words numbered across lines. */
+const creed = ['Deterministic analysis first.', 'Evidence second.', 'Inference third.', 'The model last, and never in the graph.']
+const creedWords = (() => {
+  let n = 0
+  return creed.map((line) => line.split(' ').map((text) => ({ text, i: n++ })))
+})()
 
 const corpus = ['Superset', 'PostHog', 'Zulip', 'Onyx', 'Airflow', 'AutoGPT', 'Full-stack FastAPI']
 
@@ -510,20 +514,33 @@ onBeforeUnmount(() => {
 
         <section class="cg-field">
           <HalftoneField variant="field" dot="#aaa58c" cross="#222222" :paused="still" />
-          <!-- The caption's box draws itself clockwise, then the line is typed in. -->
-          <div class="cg-field-caption" data-reveal>
-            <p class="cg-caption">
-              <span class="cg-sr">{{ fieldCaption }}</span>
-              <span class="cg-caption-text" aria-hidden="true"><span
-                  v-for="(ch, c) in fieldCaption"
-                  :key="c"
-                  class="cg-ch"
-                  :style="{ '--c': c }"
-                >{{ ch }}</span><span class="cg-caption-caret" :style="{ '--c': fieldCaption.length }" /></span>
+          <!--
+            The governing principle, large, in the middle of the field. Its box
+            opens from the centre and its edges draw, then the lines rise word
+            by word. The dots part around it (data-clear).
+          -->
+          <div class="cg-creed-wrap">
+            <div class="cg-creed" data-split data-clear>
+              <ol class="cg-creed-lines">
+                <li
+                  v-for="(line, l) in creedWords"
+                  :key="l"
+                  :class="{ 'is-last': l === creedWords.length - 1 }"
+                  :style="{ '--l': l }"
+                >
+                  <span class="cg-index" aria-hidden="true">{{ String(l + 1).padStart(2, '0') }}</span>
+                  <span
+                    ><template v-for="(w, k) in line" :key="w.i"
+                      ><span class="cg-word"><span class="cg-word-in" :style="{ '--w': w.i }">{{ w.text }}</span></span
+                      >{{ k < line.length - 1 ? ' ' : '' }}</template
+                    ></span
+                  >
+                </li>
+              </ol>
               <i class="cg-edge cg-edge--t" /><i class="cg-edge cg-edge--r" /><i class="cg-edge cg-edge--b" /><i
                 class="cg-edge cg-edge--l"
               />
-            </p>
+            </div>
           </div>
         </section>
       </div>
@@ -679,15 +696,6 @@ onBeforeUnmount(() => {
               <i aria-hidden="true">+</i>Contributing guide
             </a>
           </div>
-          <div class="cg-install" data-reveal>
-            <div class="cg-install-head">
-              <p class="cg-label">Try it</p>
-              <button class="cg-copy" type="button" @click="copyInstall">{{ copied ? 'Copied' : 'Copy' }}</button>
-              <span class="cg-sr" aria-live="polite">{{ copied ? 'Command copied' : '' }}</span>
-            </div>
-            <pre><code>{{ install }}</code></pre>
-            <a class="cg-install-more" :href="page('/releases/v0.1.0')">Installation and every command →</a>
-          </div>
         </div>
 
         <ol class="cg-values" data-reveal>
@@ -732,8 +740,22 @@ onBeforeUnmount(() => {
 
     <!-- Footer -->
     <footer class="cg-footer" :inert="menuOpen || undefined">
+      <!-- The dome holds the one place the install command appears; its dots part around it. -->
       <div class="cg-dome">
         <HalftoneField variant="dome" dot="#c9c6b8" cross="#eddfee" :paused="still" />
+        <div class="cg-try" data-clear>
+          <p class="cg-label" data-reveal>Try it</p>
+          <SplitWords class="cg-try-title" :lines="['Run it on your', 'own repository.']" />
+          <div class="cg-try-cmd" data-reveal style="--i: 1">
+            <pre><code>{{ install }}</code></pre>
+            <button class="cg-copy" type="button" @click="copyInstall">{{ copied ? 'Copied' : 'Copy' }}</button>
+            <span class="cg-sr" aria-live="polite">{{ copied ? 'Command copied' : '' }}</span>
+          </div>
+          <div class="cg-try-links" data-reveal style="--i: 2">
+            <a class="cg-button" :href="page('/releases/v0.1.0')"><i aria-hidden="true">+</i>Install and commands</a>
+            <a class="cg-button" :href="page('/development/cli')"><i aria-hidden="true">+</i>Command-line reference</a>
+          </div>
+        </div>
       </div>
       <div class="cg-footer-grid">
         <div data-reveal style="--i: 0">
@@ -1549,39 +1571,55 @@ a:hover > .cg-button i {
   border-top: 1px solid rgba(34, 34, 34, 0.12);
 }
 
-.cg-field-caption {
+/* The governing principle, centred in the field. */
+.cg-creed-wrap {
   position: absolute;
-  inset: auto var(--cg-gutter) 1.75rem;
-  display: flex;
-  justify-content: center;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0 var(--cg-gutter);
   pointer-events: none;
 }
 
-/* A solid box, so the dots never run through the words. */
-.cg-caption {
+.cg-creed {
+  /* The words wait for the box to open (see .cg-word-in in style.css). */
+  --split-delay: 0.9s;
   position: relative;
-  max-width: 100%;
-  margin: 0;
-  padding: 0.85rem 1.25rem;
-  font-family: var(--cg-font-mono);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  line-height: 1.6;
-  text-align: center;
-  text-transform: uppercase;
-  color: var(--cg-black);
-  background-color: var(--cg-manilla);
+  max-width: 46rem;
+  padding: clamp(1.25rem, 0.7rem + 1.8vw, 2.5rem) clamp(1.25rem, 0.5rem + 2.6vw, 3rem);
+  background-color: rgba(237, 232, 218, 0.92);
+  pointer-events: auto;
 }
 
-.cg-caption-caret {
-  display: inline-block;
-  width: 0.55em;
-  height: 1.05em;
-  margin-left: 0.2em;
-  vertical-align: text-bottom;
-  background: var(--cg-pink-deep);
-  opacity: 0;
+.cg-creed-lines {
+  display: grid;
+  gap: 0.3em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cg-creed-lines li {
+  display: grid;
+  grid-template-columns: clamp(1.75rem, 1.2rem + 1.5vw, 2.75rem) minmax(0, 1fr);
+  align-items: baseline;
+  color: var(--cg-black);
+  font-size: clamp(1.3rem, 0.7rem + 2.1vw, 2.5rem);
+  font-weight: 500;
+  line-height: 1.06;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+/* The last clause is the one that is never relaxed. */
+.cg-creed-lines li.is-last {
+  color: var(--cg-pink-deep);
+}
+
+.cg-creed-lines .cg-index {
+  align-self: start;
+  padding-top: 0.5em;
+  color: var(--cg-black);
 }
 
 .cg-edge {
@@ -1980,25 +2018,6 @@ a:hover > .cg-button i {
   line-height: 1.55;
 }
 
-.cg-install {
-  margin: clamp(2rem, 1.5rem + 2vw, 3.5rem) 0 0;
-  padding: clamp(1.25rem, 0.9rem + 1vw, 1.75rem);
-  color: var(--cg-light-pink);
-  background: var(--cg-black);
-}
-
-.cg-install-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
-}
-
-.cg-install-head .cg-label {
-  margin: 0;
-}
-
 .cg-copy {
   padding: 0.3rem 0.65rem;
   font-family: var(--cg-font-mono);
@@ -2017,31 +2036,6 @@ a:hover > .cg-button i {
 .cg-copy:hover {
   background: var(--cg-light-pink);
   color: var(--cg-black);
-}
-
-.cg-install pre {
-  margin: 0;
-  font-family: var(--cg-font-mono);
-  font-size: 12.5px;
-  line-height: 1.7;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.cg-install-more {
-  display: inline-block;
-  margin-top: 1rem;
-  font-family: var(--cg-font-mono);
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  border-bottom: 1px solid rgba(237, 223, 238, 0.4);
-  transition: border-color 0.3s var(--cg-ease);
-}
-
-.cg-install-more:hover {
-  border-color: var(--cg-pink);
 }
 
 .cg-values {
@@ -2169,7 +2163,65 @@ a:hover > .cg-button i {
 }
 
 .cg-dome {
-  height: clamp(240px, 36vw, 540px);
+  position: relative;
+  height: clamp(560px, 46vw, 700px);
+}
+
+/* Centred by margins rather than a transform, so the dots can measure it. */
+.cg-try {
+  position: absolute;
+  top: clamp(3rem, 2rem + 3vw, 5.5rem);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  width: min(47rem, calc(100% - 2 * var(--cg-gutter)));
+  margin-inline: auto;
+  text-align: center;
+}
+
+.cg-try .cg-label {
+  margin: 0;
+  color: var(--cg-pink);
+}
+
+.cg-try-title {
+  margin: 0;
+  font-size: clamp(1.9rem, 1rem + 3.2vw, 3.6rem);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+.cg-try-cmd {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.9rem 1rem 0.9rem 1.25rem;
+  text-align: left;
+  background: #182317;
+  border: 1px solid rgba(237, 223, 238, 0.18);
+}
+
+.cg-try-cmd pre {
+  flex: 1;
+  margin: 0;
+  font-family: var(--cg-font-mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.cg-try-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem 1.75rem;
 }
 
 .cg-footer-grid {
@@ -2659,7 +2711,17 @@ a:hover > .cg-button i {
   }
 }
 
-/* The caption: four edges draw clockwise, the box fills, the line types in. */
+/* The statement: its box opens outward from the centre, the four edges draw
+   clockwise, the numbers fade up, and the words rise (after --split-delay). */
+.cg-motion .cg-creed {
+  clip-path: inset(50% 50% 50% 50%);
+}
+
+.cg-motion .cg-creed.is-in {
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 1s var(--cg-ease) 0.1s;
+}
+
 .cg-motion .cg-edge--t,
 .cg-motion .cg-edge--b {
   transform: scaleX(0);
@@ -2670,53 +2732,31 @@ a:hover > .cg-button i {
   transform: scaleY(0);
 }
 
-.cg-motion .cg-field-caption.is-in .cg-edge {
+.cg-motion .cg-creed.is-in .cg-edge {
   transform: none;
-  transition: transform 0.45s var(--cg-ease);
+  transition: transform 0.5s var(--cg-ease);
 }
 
-.cg-motion .cg-field-caption.is-in .cg-edge--t {
-  transition-delay: 0.25s;
-}
-.cg-motion .cg-field-caption.is-in .cg-edge--r {
+.cg-motion .cg-creed.is-in .cg-edge--t {
   transition-delay: 0.55s;
 }
-.cg-motion .cg-field-caption.is-in .cg-edge--b {
-  transition-delay: 0.85s;
+.cg-motion .cg-creed.is-in .cg-edge--r {
+  transition-delay: 0.75s;
 }
-.cg-motion .cg-field-caption.is-in .cg-edge--l {
+.cg-motion .cg-creed.is-in .cg-edge--b {
+  transition-delay: 0.95s;
+}
+.cg-motion .cg-creed.is-in .cg-edge--l {
   transition-delay: 1.15s;
 }
 
-.cg-motion .cg-caption {
-  background-color: transparent;
-}
-
-.cg-motion .cg-field-caption.is-in .cg-caption {
-  background-color: var(--cg-manilla);
-  transition: background-color 0.5s ease 1.1s;
-}
-
-.cg-motion .cg-ch {
+.cg-motion .cg-creed .cg-index {
   opacity: 0;
 }
 
-/* jump-start, not end: the delays accumulate floating-point error, so later
-   characters finish at a progress just under 1, where steps(1, end) is still
-   on its first step and would leave them invisible. */
-.cg-motion .cg-field-caption.is-in .cg-ch {
-  animation: cg-type 0.01s steps(1, jump-start) calc(1.45s + var(--c) * 17ms) forwards;
-}
-
-/* Three blinks once typed, then it rests. */
-.cg-motion .cg-field-caption.is-in .cg-caption-caret {
-  animation: cg-blink 1s steps(1, end) calc(1.45s + var(--c) * 17ms) 3;
-}
-
-@keyframes cg-type {
-  to {
-    opacity: 1;
-  }
+.cg-motion .cg-creed.is-in .cg-index {
+  opacity: 1;
+  transition: opacity 0.6s ease calc(0.9s + var(--l) * 0.15s);
 }
 
 /* The terminal types its output one line at a time. */
