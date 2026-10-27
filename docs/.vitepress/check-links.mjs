@@ -13,11 +13,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { SITE_BASE } from './site-base.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const DIST = path.join(HERE, 'dist')
 const REPO = path.resolve(HERE, '..', '..')
-const BASE = '/cartograph/'
+const BASE = SITE_BASE
 const REPO_URL = /^https:\/\/github\.com\/Rexy-5097\/cartograph\/(?:blob|tree)\/main\/([^#?]*)/
 
 if (!fs.existsSync(DIST)) {
