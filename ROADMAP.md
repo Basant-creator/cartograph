@@ -41,7 +41,7 @@ real-repository validation.
 | M14 | GitHub Action posting architecture review on PRs | Week 19 | **Accepted** (`cartograph-m14`) |
 | M15 | MCP server | Week 21 | **Accepted** (`cartograph-m15`) |
 | M16 | ASK — explanation over subgraph evidence | Week 24 | **Accepted** (`cartograph-m16`) |
-| M17 | Public launch and technical writeup | Week 25 | **Unlocked, not started** |
+| M17 | Public launch and technical writeup | Week 25 | **In progress, not accepted** |
 
 Statuses here are the human-readable view; the authoritative record is
 [`agentos/artifacts/project-state.yaml`](agentos/artifacts/project-state.yaml),
