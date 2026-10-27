@@ -34,7 +34,8 @@ GitHub Pages serves the site under `/cartograph/`, and the build assumes that
 path unless told otherwise. A host that serves it at the root of a domain
 builds with `CARTOGRAPH_SITE_BASE=/`, and runs the link check with the same
 setting; [`.vitepress/site-base.mjs`](../.vitepress/site-base.mjs) reads it for
-both.
+both. In Git Bash on Windows, also set `MSYS_NO_PATHCONV=1`: without it the
+shell rewrites `/` as `C:/Program Files/Git/`, and the build rejects that.
 
 The theme is in [`.vitepress/theme/`](../.vitepress/theme/).
 [`style.css`](../.vitepress/theme/style.css) re-skins VitePress's default theme
