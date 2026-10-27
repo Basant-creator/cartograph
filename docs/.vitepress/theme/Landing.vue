@@ -511,7 +511,7 @@ onBeforeUnmount(() => {
         </section>
 
         <section class="cg-field">
-          <HalftoneField variant="field" dot="#aaa58c" cross="#222222" :paused="still" />
+          <HalftoneField variant="field" dot="#aaa58c" cross="#222222" accent="#8a4a79" :paused="still" />
           <!--
             The governing principle, large, in the middle of the field. Its box
             opens from the centre and its edges draw, then the lines rise word
@@ -740,7 +740,7 @@ onBeforeUnmount(() => {
     <footer class="cg-footer" :inert="menuOpen || undefined">
       <!-- The dome holds the one place the install command appears; its dots part around it. -->
       <div class="cg-dome">
-        <HalftoneField variant="dome" dot="#c9c6b8" cross="#eddfee" :paused="still" />
+        <HalftoneField variant="dome" dot="#c9c6b8" cross="#eddfee" accent="#cd8dbd" :paused="still" />
         <div class="cg-try" data-clear>
           <p class="cg-label" data-reveal>Try it</p>
           <SplitWords class="cg-try-title" :lines="['Run it on your', 'own repository.']" />
