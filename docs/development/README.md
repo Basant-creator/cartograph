@@ -29,3 +29,14 @@ A relative link to a file outside `docs/` becomes a link to that file on GitHub,
 and the build fails if the file does not exist. The
 [docs workflow](../../.github/workflows/docs.yml) builds and link-checks the site
 on every pull request, and publishes it to GitHub Pages from `main`.
+
+The theme is in [`.vitepress/theme/`](../.vitepress/theme/).
+[`style.css`](../.vitepress/theme/style.css) re-skins VitePress's default theme
+for every page. The home page is a component,
+[`Landing.vue`](../.vitepress/theme/Landing.vue); `docs/index.md` only mounts
+it, so the home page's wording is edited there. It holds to the same rule as
+the rest of the site: every statement comes from the README or these
+documents, and it publishes no figure the README does not. Fonts are bundled
+from npm, so the site makes no third-party request. Any colour pair the theme
+adds must reach WCAG 2.1 AA contrast: 4.5:1 for text, and 3:1 for focus rings
+and other non-text marks.
