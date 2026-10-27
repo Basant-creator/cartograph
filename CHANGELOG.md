@@ -7,6 +7,56 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — motion on the documentation site's home page
+
+The home page moves now:
+
+- **Hero.** A slow graph of nodes and edges, with packets of evidence crossing
+  it, sits behind the headline. The headline's two halves part and fade as the
+  statement slides up over the pinned hero, and the statement brightens word by
+  word as it is read.
+- **Sections.** Panels rise into place and headings rise in word by word. The
+  step icons draw themselves, and the terminal types the Airflow trace line by
+  line. The published figures count up to their exact values.
+- **Interaction.** The marquee speeds up while the page scrolls. A cursor ring
+  follows a fine pointer, and buttons lean toward it.
+
+It is written against the platform, with no animation library: one scroll loop,
+IntersectionObserver, and CSS. Only transform and opacity move, so nothing
+shifts the layout. The landing page's JavaScript grows from 69.0 to 72.7 KB
+gzipped.
+
+Everything that moves stops under `prefers-reduced-motion`, and with the
+"Pause motion" control now in the header, which the browser remembers. Before
+JavaScript runs, everything is already in place. The terminal caret blinks four
+times and stops.
+
+Links now read as names rather than addresses. The menu's
+`github.com/Rexy-5097/cartograph` becomes "Cartograph on GitHub". The install
+command appears once, in "Try it", with a Copy button; the menu and footer link
+to the installation page instead of repeating it.
+
+### Fixed — the documentation site's accessibility
+
+An AgentOS review of the redesigned site (`ui-reviewer`, `docs-reviewer`)
+found it short of WCAG 2.1 AA:
+
+- **Focus rings.** They were a fixed pink that measured 1.0–2.6:1 against the
+  light blocks, and now take each block's text colour.
+- **Invisible tab stops.** Five controls could be tabbed to while invisible:
+  the open accordion strip and the links of collapsed principles. They are now
+  hidden or inert, and the open menu keeps focus to itself.
+- **Text contrast.** Text below 4.5:1 now measures 4.7–7.5:1: a footnote, the
+  accordion tags, the theme's faintest text and the code-language labels.
+- **Motion.** The corpus marquee scrolled with no way to stop it (WCAG 2.2.2).
+  A "Pause motion" control now stops it and the page's other looping
+  animations.
+- **Clipped layout.** Between 761px and 960px the open surfaces panel was
+  clipped by up to 85px. The surfaces now stack below 960px.
+
+The two Geist faces the first screen uses are preloaded again, as Inter was
+before the theme replaced it.
+
 ### Changed — the documentation site's design (M17)
 
 The site has a home page of its own, `docs/.vitepress/theme/Landing.vue`, in

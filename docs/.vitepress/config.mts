@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { defineConfig, type DefaultTheme } from 'vitepress'
+import { defineConfig, type DefaultTheme, type HeadConfig } from 'vitepress'
 
 // The site is built from the Markdown in docs/, the same files GitHub renders.
 // Nothing here forks that content: two adaptations are made at build time, and
@@ -129,6 +129,14 @@ export default defineConfig({
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/cartograph/favicon.svg' }],
     ['meta', { name: 'theme-color', content: '#222222' }],
   ],
+  // Preload the Latin subsets of the two faces every page opens with, as the
+  // default theme does for its own Inter; the file names are content-hashed,
+  // so they are read from the build rather than written here.
+  transformHead({ assets }) {
+    return assets
+      .filter((file) => /geist(-mono)?-latin-wght-normal\.[\w-]+\.woff2$/.test(file))
+      .map((href): HeadConfig => ['link', { rel: 'preload', href, as: 'font', type: 'font/woff2', crossorigin: '' }])
+  },
 
   // docs/README.md is the index GitHub shows for this directory; on the site
   // the home page and the sidebar take its place, and links to it resolve to
