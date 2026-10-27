@@ -7,6 +7,17 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — the documentation site's design (M17)
+
+The site has a home page of its own, `docs/.vitepress/theme/Landing.vue`, in
+place of VitePress's default hero. It says what the README says: the five
+surfaces, how parse, resolve and prove fit together, a real `trace` from
+Airflow, and the M08 figures with the same scope and caveats. It publishes no
+new number. The documentation pages keep their content and get the same
+palette and type. Geist and Geist Mono are bundled from npm
+(`@fontsource-variable/geist`, `@fontsource-variable/geist-mono`, both
+OFL-1.1), so the site makes no request to a font CDN.
+
 ### Fixed — a frontmatter `title` broke the site build
 
 The site's link-rewriting plugin resolved every link against a source file.

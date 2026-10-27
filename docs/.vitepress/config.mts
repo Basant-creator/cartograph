@@ -122,6 +122,13 @@ export default defineConfig({
     'Compute the architecture. Prove the relationships. A local-first, cross-language architecture graph with the evidence behind every edge.',
   base: '/cartograph/',
   lang: 'en-GB',
+  // The site's palette is set in .vitepress/theme/style.css; dark is its
+  // native field, and the light appearance is manilla paper.
+  appearance: 'dark',
+  head: [
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/cartograph/favicon.svg' }],
+    ['meta', { name: 'theme-color', content: '#222222' }],
+  ],
 
   // docs/README.md is the index GitHub shows for this directory; on the site
   // the home page and the sidebar take its place, and links to it resolve to
