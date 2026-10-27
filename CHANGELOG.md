@@ -7,6 +7,30 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — the home page's step icons build themselves; the field caption is boxed
+
+The three "How it works" icons used to draw all at once. Now each builds in
+order once its card is in, then keeps a small motion that says what its step
+does:
+
+- **Parse.** The root, the trunk and the branches draw, the nodes pop in, and
+  then tokens flow down the tree to its leaves.
+- **Resolve.** The language boundary rises, the call's arc crosses it to the
+  handler, and then a match travels the arc and lands.
+- **Prove.** The frame's corners close in, the square and the check are drawn,
+  and then a scan line sweeps the evidence.
+
+The line under the halftone field now sits in a box, as the reference site
+boxes its text. The box's edges draw clockwise, the box fills, and the line
+types in. The solid fill also stops the dots running through the words. Screen
+readers get the line whole, from a hidden copy.
+
+All of it stops with the rest of the page's motion: the idle shapes are hidden
+and the icons and caption are simply in place. While building this, a
+`steps(1, end)` typing animation left two thirds of the caption invisible. The
+delays accumulate floating-point error, so later characters ended at a progress
+just under 1, and `jump-start` fixes it.
+
 ### Changed — motion on the documentation site's home page
 
 The home page moves now:
