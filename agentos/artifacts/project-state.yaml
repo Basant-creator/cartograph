@@ -629,8 +629,9 @@ milestones:
     #
     # Of the scope in agentos/milestones/M17-public-launch.md: the technical
     # writeup is merged (#70, after the traceability remediation in #69); the
-    # VitePress site is #73, not yet merged and not deployed; v1.0 stable has
-    # not begun - the workspace version is 0.1.0 and no v1.0.0 tag exists.
+    # VitePress site is merged (#73) and deployed to GitHub Pages from main;
+    # v1.0 stable has not begun - the workspace version is 0.1.0 and no
+    # v1.0.0 tag exists.
     # #71 and #72 corrected stale resolver documentation.
     status: NOT_STARTED                   # NOT ACCEPTED; in progress, see above
     implementation: IN_PROGRESS           # not MERGED: v1.0 stable outstanding

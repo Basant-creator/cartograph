@@ -39,6 +39,20 @@ animation frame's callbacks took 0.8 ms (median; 1.1 ms at the 95th
 percentile). With "Pause motion" pressed, both canvases stayed identical over
 1.2 s.
 
+### Fixed — the orbit's labels hold still inside their pills
+
+The figures on the globe's orbit shook up and down inside their pills. Each
+frame drew a pill and its text separately, at the label's exact position.
+Canvas text snaps to whole device pixels vertically and the pill's outline does
+not, so the words jumped half a pixel at a time against a smoothly moving
+outline. Measured in the preview, at a pixel ratio of 2: moving a label down in
+eighths of a pixel moved its outline's centre smoothly, 29.75 to 30.75 px, while
+its text's centre held and then jumped: 29.54, 29.54, 29.54, 30.04 and so on.
+
+Each label is now drawn once, pill and text together, into a small canvas of
+its own. Every frame places that image whole, on a whole device pixel, so it is
+copied rather than resampled and the text cannot move within its pill.
+
 ### Fixed — the docs no longer tell readers to run `npx cartograph-cli`
 
 The v0.1.0 release notes and `npm/README.md` told readers to run
