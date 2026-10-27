@@ -33,9 +33,9 @@ stable, the technical writeup, and a VitePress documentation site.
 - **Technical writeup** — merged in #70, after the traceability remediation in
   #69 that traced every figure it uses to a committed artifact.
 - **Documentation site** — merged in #73, built from `docs/` and link-checked
-  on every pull request. It is published to GitHub Pages from `main`, at
-  https://rexy-5097.github.io/cartograph/. #82 gave it a home page and a theme
-  of its own.
+  on every pull request. It is
+  [published to GitHub Pages](https://rexy-5097.github.io/cartograph/) from
+  `main`. #82 gave it a home page and a theme of its own.
 - **v1.0 stable** — not begun. The workspace version is 0.1.0 and no `v1.0.0`
   or `cartograph-m17` tag exists.
 - #71 and #72 corrected stale resolver documentation.
@@ -455,7 +455,7 @@ MCP, no AI. `cartograph-resolver` remains a doc-only crate.
 
 | Date | Session outcome |
 |---|---|
-| 2026-10-27 | Development environment set up on Windows 11 from a zip of a contributor's clone. The workspace, desktop, benchmark and docs checks all passed there. Live docs site audited: no broken links among its 52 pages, 58 assets, 626 anchors and 55 external links. PR #82 (home page and theme) merged. An AgentOS review of it (`ui-reviewer`, `docs-reviewer`, QG-002) found WCAG 2.1 AA failures: focus-ring and text contrast, five invisible tab stops, an unpausable marquee, and a panel clipped at 761–960px. It also found a development README that did not say where the theme lives. All are fixed on `feature/m17-site-review`. Found, not fixed: the root `AGENTOS.md` gives the validator as 99/100, but a clone scores 98/100, because `agentos/.gitignore` excludes `production_validation/productivity_metrics.csv`. M17 is unchanged: in progress, not accepted. |
+| 2026-10-27 | Development environment set up on Windows 11 from a zip of a contributor's clone. The workspace, desktop, benchmark and docs checks all passed there. Live docs site audited: no broken links among its 52 pages, 58 assets, 626 anchors and 55 external links. PR #82 (home page and theme) merged. An AgentOS review of it (`ui-reviewer`, `docs-reviewer`, QG-002) found WCAG 2.1 AA failures: focus-ring and text contrast, five invisible tab stops, an unpausable marquee, and a panel clipped at 761–960px. It also found a development README that did not say where the theme lives. All are fixed on `feature/m17-site-review`. The same branch then gave the home page motion (scroll-linked, written without an animation library, stopped by reduced motion and a "Pause motion" control), and replaced bare addresses with named links. Found, not fixed: the root `AGENTOS.md` gives the validator as 99/100, but a clone scores 98/100, because `agentos/.gitignore` excludes `production_validation/productivity_metrics.csv`. M17 is unchanged: in progress, not accepted. |
 | 2026-08-31 | Development environment reconstructed on Windows 11 from GitHub alone (no SSD, no prior machine). Found M09 merged but never accepted, and a Windows privacy defect that made its gates fail: redaction gated on `Path::is_absolute()`, which misses drive-less rooted paths, leaking them into serialised JSON and stderr. Fixed under PR #16 with six regression tests; analyser untouched. M09 accepted at `e8416f9` (`cartograph-m09`), folding PR #16 in per the M07 precedent. M10 unlocked and **not** started, per RULE 025. |
 | 2026-08-19 | M01 accepted (`cartograph-m01`), M02 executed: Python extractor into the shared fact model, route observations, 47 new tests, benchmarks, three smoke corpora. `RouteFramework` corrected to `RouteDeclarationStyle` after Flask's repo disproved the framework label. PR #3 opened; stopped per RULE 025. |
 | 2026-08-19 | M00 checkpoint semantics repaired (ADR-0010: provisional rc tags vs accepted tags; premature cartograph-m00 retired, rc1 created at exact PR head). M01 executed: tree-sitter TS/TSX extractor, fact model, diagnostics, CLI `parse`, 22-category fixture corpus, 82 tests, criterion group, two real-repo smoke tests. PR opened; stopped per RULE 025. |
