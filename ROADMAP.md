@@ -144,7 +144,7 @@ unmeasured number would violate RULE 025's spirit and the publishing standard.
 | Channel | Mechanism | Milestone |
 |---|---|---|
 | `cargo install` | crates.io | M09 |
-| `npx cartograph` | Thin npm wrapper downloading a prebuilt platform binary | M09+ |
+| npm (package name undecided) | Thin npm wrapper downloading a prebuilt platform binary. Not published; the `cartograph` and `cartograph-cli` names are owned by unrelated packages | M09+ |
 | `brew install` | Homebrew tap | M09+ |
 | GitHub Action | Runs the binary in the user's own CI — no server, no hosting cost | M14 |
 | MCP | Claude Code and Cursor query the graph directly | M15 |
