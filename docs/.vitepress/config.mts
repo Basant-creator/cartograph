@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type DefaultTheme, type HeadConfig } from 'vitepress'
+import { SITE_BASE } from './site-base.mjs'
 
 // The site is built from the Markdown in docs/, the same files GitHub renders.
 // Nothing here forks that content: two adaptations are made at build time, and
@@ -120,13 +121,13 @@ export default defineConfig({
   title: 'Cartograph',
   description:
     'Compute the architecture. Prove the relationships. A local-first, cross-language architecture graph with the evidence behind every edge.',
-  base: '/cartograph/',
+  base: SITE_BASE,
   lang: 'en-GB',
   // The site's palette is set in .vitepress/theme/style.css; dark is its
   // native field, and the light appearance is manilla paper.
   appearance: 'dark',
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/cartograph/favicon.svg' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${SITE_BASE}favicon.svg` }],
     ['meta', { name: 'theme-color', content: '#222222' }],
   ],
   // Preload the Latin subsets of the two faces every page opens with, as the

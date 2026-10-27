@@ -47,6 +47,18 @@ The dots in both part around the content. `HalftoneField` now leaves a clearing
 around any element in its section marked `data-clear`, and the resting
 crosshair never lands on that content.
 
+### Added — the site can be built for the root of a domain
+
+GitHub Pages serves the site under `/cartograph/`, and that path was written
+into both the build and the link check. Both now read it from
+`CARTOGRAPH_SITE_BASE`, which defaults to `/cartograph/`. A host that serves
+the site at the root of a domain builds it with `CARTOGRAPH_SITE_BASE=/`. A
+value that does not start and end with `/` fails the build.
+
+Built and link-checked at both bases: 53 pages, 3,198 internal links, 623
+anchors and 514 repository links, none broken. A root build checked against
+`/cartograph/` reports all 3,198 internal links broken, as it should.
+
 ### Changed — the home page's step icons build themselves; the field caption is boxed
 
 The three "How it works" icons used to draw all at once. Now each builds in
