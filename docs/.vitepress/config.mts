@@ -73,7 +73,11 @@ function rewriteLink(href: string, source: string): string {
 
 function repositoryLinks(md: any) {
   md.core.ruler.push('cartograph_repository_links', (state: any) => {
-    const raw: string = state.env.realPath ?? state.env.path
+    // VitePress also renders text that has no source file through this
+    // pipeline — a frontmatter `title`, for one. With no file there is no
+    // relative link to resolve, so there is nothing to rewrite.
+    const raw: string | undefined = state.env.realPath ?? state.env.path
+    if (!raw) return
     const source = path.isAbsolute(raw) ? raw : path.resolve(DOCS, raw)
     for (const block of state.tokens) {
       if (block.type !== 'inline' || !block.children) continue

@@ -7,6 +7,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — a frontmatter `title` broke the site build
+
+The site's link-rewriting plugin resolved every link against a source file.
+VitePress also renders a page's frontmatter `title` through markdown-it, with no
+file to resolve against, so any page that set a `title` failed the build with
+`The "path" argument must be of type string`. The plugin now skips text that
+has no source file.
+
 ### Fixed — a stack overflow on deep syntax trees
 
 `cartograph` aborted with a stack overflow on Windows while analysing PostHog
