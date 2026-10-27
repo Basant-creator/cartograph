@@ -240,6 +240,57 @@
   text-transform: uppercase;
 }
 
+/* ---------- Documentation pages: a short entrance ---------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .VPDoc .content-container {
+    animation: cg-doc-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+}
+
+@keyframes cg-doc-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+/* ---------- Split words (landing page) ----------
+   Global rather than scoped, because SplitWords renders them as a child
+   component. Starting states exist only under .cg-motion, which the landing
+   page sets only while motion is allowed. */
+
+.cg .cg-word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  padding-bottom: 0.08em;
+  margin-bottom: -0.08em;
+}
+
+.cg .cg-word-in {
+  display: inline-block;
+}
+
+/* Headings, and the footer's wordmark, rise into place word by word. */
+.cg-motion [data-split] .cg-word-in {
+  transform: translateY(112%);
+  transition: transform 1.1s var(--cg-ease) calc(var(--w) * 55ms);
+}
+
+.cg-motion [data-split].is-in .cg-word-in {
+  transform: none;
+}
+
+/* The statement brightens in reading order as it is scrolled into view. */
+.cg .cg-split--fill .cg-word {
+  overflow: visible;
+}
+
+.cg-motion .cg-split--fill .cg-word-in {
+  opacity: clamp(0.25, calc(var(--p, 1) * (var(--n) + 6) - var(--w)), 1);
+}
+
 /* ---------- The landing page owns its whole viewport ---------- */
 
 .cg-landing .VPContent {

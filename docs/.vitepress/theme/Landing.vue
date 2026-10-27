@@ -3,10 +3,18 @@
 // documentation, and every figure is one the README already publishes from
 // committed benchmark results, with the same scope and caveats. Nothing here
 // describes behaviour the code does not have.
+//
+// Motion lives in ./motion.ts and in the CSS under `.cg-motion`, a class the
+// page carries only once it has mounted and only while motion is allowed —
+// so without JavaScript, with motion paused, or under prefers-reduced-motion,
+// everything is simply in place.
 
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { withBase } from 'vitepress'
+import GraphField from './GraphField.vue'
 import HalftoneField from './HalftoneField.vue'
+import SplitWords from './SplitWords.vue'
+import { counters, cursor, magnetic, marqueeVelocity, reveals, scrollScene } from './motion'
 
 const REPO = 'https://github.com/Rexy-5097/cartograph'
 
@@ -24,6 +32,9 @@ const menu = [
   { text: 'Command line', href: page('/development/cli') },
   { text: 'Releases', href: page('/releases/') },
 ]
+
+const statement =
+  'A local-first engine that derives a cross-language architecture graph from source, and shows the evidence behind every edge it draws.'
 
 const surfaces = [
   {
@@ -151,17 +162,48 @@ ConnectionTestRequest  (class)  .../airflow/models/connection_test.py:82
 connection_test_request  (table)
 
 This path crosses the HTTP boundary and reaches a database table.`
+const traceLines = trace.split('\n')
+
+const MOTION_KEY = 'cartograph:motion-paused'
 
 const root = ref<HTMLElement | null>(null)
+const ring = ref<HTMLElement | null>(null)
 const menuButton = ref<HTMLButtonElement | null>(null)
 const menuOpen = ref(false)
 const scrolled = ref(false)
+const headerHidden = ref(false)
+const heroActive = ref(true)
 const surface = ref(0)
 const principle = ref(0)
-/** The viewer paused the page's looping motion. */
+const copied = ref(false)
+/** The viewer paused the page's motion with the header control. */
 const still = ref(false)
+/** The system asks for reduced motion. */
+const reduced = ref(false)
+const mounted = ref(false)
+const motionOn = computed(() => mounted.value && !still.value && !reduced.value)
+const isStill = () => still.value || reduced.value
 
 const cleanups: Array<() => void> = []
+
+function toggleMotion() {
+  still.value = !still.value
+  try {
+    localStorage.setItem(MOTION_KEY, still.value ? '1' : '0')
+  } catch {
+    // Storage may be unavailable; the choice then lasts for this visit only.
+  }
+}
+
+async function copyInstall() {
+  try {
+    await navigator.clipboard.writeText(install)
+    copied.value = true
+    setTimeout(() => (copied.value = false), 2000)
+  } catch {
+    // Clipboard access refused; the command stays selectable as text.
+  }
+}
 
 watch(menuOpen, async (open) => {
   document.documentElement.style.overflow = open ? 'hidden' : ''
@@ -170,13 +212,35 @@ watch(menuOpen, async (open) => {
   else menuButton.value?.focus()
 })
 
-onMounted(() => {
+// Resuming motion: recompute scroll-linked state at once rather than on the
+// next scroll.
+watch(still, () => window.dispatchEvent(new Event('scroll')))
+
+onMounted(async () => {
   const el = root.value
   if (!el) return
-  el.classList.add('cg-js')
 
+  try {
+    still.value = localStorage.getItem(MOTION_KEY) === '1'
+  } catch {
+    still.value = false
+  }
+  const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+  reduced.value = media.matches
+  const onMedia = () => (reduced.value = media.matches)
+  media.addEventListener('change', onMedia)
+  cleanups.push(() => media.removeEventListener('change', onMedia))
+
+  let lastY = window.scrollY
   const onScroll = () => {
-    scrolled.value = window.scrollY > 24
+    const y = window.scrollY
+    scrolled.value = y > 24
+    heroActive.value = y < window.innerHeight * 1.2
+    if (!menuOpen.value) {
+      if (y > lastY + 6 && y > 160) headerHidden.value = true
+      else if (y < lastY - 6) headerHidden.value = false
+    }
+    lastY = y
   }
   onScroll()
   window.addEventListener('scroll', onScroll, { passive: true })
@@ -188,18 +252,17 @@ onMounted(() => {
   window.addEventListener('keydown', onKey)
   cleanups.push(() => window.removeEventListener('keydown', onKey))
 
-  const io = new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue
-        entry.target.classList.add('is-in')
-        io.unobserve(entry.target)
-      }
-    },
-    { rootMargin: '0px 0px -8% 0px' },
+  mounted.value = true
+  await nextTick()
+
+  cleanups.push(
+    scrollScene(el, isStill),
+    reveals(el),
+    counters(el, isStill),
+    magnetic(el, isStill),
+    marqueeVelocity([...el.querySelectorAll<HTMLElement>('.cg-marquee ul')], isStill),
   )
-  el.querySelectorAll('[data-reveal]').forEach((node) => io.observe(node))
-  cleanups.push(() => io.disconnect())
+  if (ring.value) cleanups.push(cursor(el, ring.value, isStill))
 })
 
 onBeforeUnmount(() => {
@@ -209,9 +272,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="root" class="cg" :class="{ 'is-still': still }">
+  <div ref="root" class="cg" :class="{ 'cg-js': mounted, 'cg-motion': motionOn, 'is-still': still }">
+    <div ref="ring" class="cg-cursor" aria-hidden="true" />
+
     <!-- Header -->
-    <header class="cg-header" :class="{ 'is-solid': scrolled || menuOpen }">
+    <header class="cg-header" :class="{ 'is-solid': scrolled || menuOpen, 'is-hidden': headerHidden && !menuOpen }">
       <a class="cg-logo" :href="withBase('/')" aria-label="Cartograph — home">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="5" cy="12" r="2.6" />
@@ -221,23 +286,30 @@ onBeforeUnmount(() => {
         </svg>
         <span>Cartograph</span>
       </a>
-      <button
-        ref="menuButton"
-        class="cg-menu-button"
-        type="button"
-        :aria-expanded="menuOpen"
-        aria-controls="cg-menu"
-        @click="menuOpen = !menuOpen"
-      >
-        <span>{{ menuOpen ? 'Close' : 'Menu' }}</span>
-        <i class="cg-plus" :class="{ 'is-open': menuOpen }" aria-hidden="true" />
-      </button>
+      <div class="cg-header-actions">
+        <!-- WCAG 2.2.2: everything that moves on its own can be paused. -->
+        <button class="cg-motion-toggle" type="button" :aria-pressed="still" @click="toggleMotion">
+          <i aria-hidden="true">{{ still ? '▶' : '‖' }}</i>
+          <span>Pause motion</span>
+        </button>
+        <button
+          ref="menuButton"
+          class="cg-menu-button"
+          type="button"
+          :aria-expanded="menuOpen"
+          aria-controls="cg-menu"
+          @click="menuOpen = !menuOpen"
+        >
+          <span>{{ menuOpen ? 'Close' : 'Menu' }}</span>
+          <i class="cg-plus" :class="{ 'is-open': menuOpen }" aria-hidden="true" />
+        </button>
+      </div>
     </header>
 
     <Transition name="cg-menu">
       <nav v-show="menuOpen" id="cg-menu" class="cg-menu" aria-label="Site">
         <ol class="cg-menu-list">
-          <li v-for="(item, i) in menu" :key="item.text">
+          <li v-for="(item, i) in menu" :key="item.text" :style="{ '--i': i }">
             <a :href="item.href" @click="menuOpen = false">
               <small>{{ String(i + 1).padStart(2, '0') }}</small>
               {{ item.text }}
@@ -247,11 +319,12 @@ onBeforeUnmount(() => {
         <div class="cg-menu-aside">
           <div>
             <p class="cg-label">Source</p>
-            <a class="cg-menu-small" :href="REPO">github.com/Rexy-5097/cartograph</a>
+            <a class="cg-menu-link" :href="REPO">Cartograph on GitHub <span aria-hidden="true">↗</span></a>
           </div>
           <div>
-            <p class="cg-label">Install</p>
-            <pre class="cg-menu-code"><code>{{ install }}</code></pre>
+            <p class="cg-label">Get started</p>
+            <a class="cg-menu-link" :href="page('/releases/v0.1.0')" @click="menuOpen = false">Install and commands</a>
+            <a class="cg-menu-link" :href="page('/development/cli')" @click="menuOpen = false">Command-line reference</a>
           </div>
           <div>
             <p class="cg-label">Status</p>
@@ -263,69 +336,69 @@ onBeforeUnmount(() => {
 
     <!-- While the menu is open, only the header and the menu take focus. -->
     <main :inert="menuOpen || undefined">
-      <!-- Hero -->
-      <section class="cg-hero">
-        <h1 class="cg-hero-title">
-          <span class="cg-hero-left">
-            <span class="cg-line"><span style="--d: 0.05s">Compute the</span></span>
-            <span class="cg-line"><span style="--d: 0.15s">architecture</span></span>
-          </span>
-          <span class="cg-hero-right">
-            <span class="cg-line"><span style="--d: 0.3s">Prove the</span></span>
-            <span class="cg-line"><span style="--d: 0.4s">relationships</span></span>
-          </span>
-        </h1>
-        <div class="cg-hero-foot">
-          <span>Local-first architectural intelligence</span>
-          <span>TypeScript · TSX · Python</span>
-          <span>v0.1.0 · M17 in progress</span>
-        </div>
-      </section>
+      <!-- The hero stays pinned while the statement slides up over it. -->
+      <div class="cg-stage" data-scroll="top">
+        <section class="cg-hero">
+          <GraphField :paused="still" :active="heroActive" />
+          <h1 class="cg-hero-title">
+            <span class="cg-hero-left">
+              <span class="cg-line"><span style="--d: 0.05s">Compute the</span></span>
+              <span class="cg-line"><span style="--d: 0.15s">architecture</span></span>
+            </span>
+            <span class="cg-hero-right">
+              <span class="cg-line"><span style="--d: 0.3s">Prove the</span></span>
+              <span class="cg-line"><span style="--d: 0.4s">relationships</span></span>
+            </span>
+          </h1>
+          <div class="cg-hero-foot">
+            <span>Local-first architectural intelligence</span>
+            <span>TypeScript · TSX · Python</span>
+            <span>v0.1.0 · M17 in progress</span>
+          </div>
+          <span class="cg-scroll-cue" aria-hidden="true"><i /></span>
+        </section>
 
-      <!-- Statement -->
-      <section class="cg-intro">
-        <h2 class="cg-statement" data-reveal>
-          A local-first engine that derives a cross-language architecture graph from source, and
-          shows the evidence behind every edge it draws.
-        </h2>
-        <div class="cg-intro-side" data-reveal>
-          <p>
-            Cartograph reads a repository’s TypeScript, TSX and Python — symbols, imports, calls,
-            HTTP requests, route declarations and ORM models — and joins them across languages that
-            share no symbol table. One analysis core serves a CLI, a desktop application, an MCP
-            server and a pull-request review workflow.
-          </p>
-          <a class="cg-button" :href="page('/writeup/technical-writeup')">
-            <i aria-hidden="true">+</i>Read the writeup
-          </a>
-        </div>
-        <div class="cg-badge" aria-hidden="true">
-          <svg viewBox="0 0 120 120">
-            <defs>
-              <path id="cg-badge-ring" d="M60 60m-46 0a46 46 0 1 1 92 0a46 46 0 1 1-92 0" />
-            </defs>
-            <text>
-              <textPath href="#cg-badge-ring">No model in the graph · Evidence on every edge ·</textPath>
-            </text>
-          </svg>
-          <svg class="cg-badge-mark" viewBox="0 0 24 24">
-            <circle cx="5" cy="12" r="2.6" />
-            <circle cx="19" cy="5" r="2.6" />
-            <circle cx="19" cy="19" r="2.6" />
-            <path d="M7.4 10.8 16.6 6.2M7.4 13.2l9.2 4.6" />
-          </svg>
-        </div>
-      </section>
+        <section class="cg-intro">
+          <SplitWords class="cg-statement" fill :lines="[statement]" />
+          <div class="cg-intro-side" data-reveal>
+            <p>
+              Cartograph reads a repository’s TypeScript, TSX and Python — symbols, imports, calls,
+              HTTP requests, route declarations and ORM models — and joins them across languages that
+              share no symbol table. One analysis core serves a CLI, a desktop application, an MCP
+              server and a pull-request review workflow.
+            </p>
+            <a class="cg-button" :href="page('/writeup/technical-writeup')">
+              <i aria-hidden="true">+</i>Read the writeup
+            </a>
+          </div>
+          <div class="cg-badge" aria-hidden="true">
+            <svg viewBox="0 0 120 120">
+              <defs>
+                <path id="cg-badge-ring" d="M60 60m-46 0a46 46 0 1 1 92 0a46 46 0 1 1-92 0" />
+              </defs>
+              <text>
+                <textPath href="#cg-badge-ring">No model in the graph · Evidence on every edge ·</textPath>
+              </text>
+            </svg>
+            <svg class="cg-badge-mark" viewBox="0 0 24 24">
+              <circle cx="5" cy="12" r="2.6" />
+              <circle cx="19" cy="5" r="2.6" />
+              <circle cx="19" cy="19" r="2.6" />
+              <path d="M7.4 10.8 16.6 6.2M7.4 13.2l9.2 4.6" />
+            </svg>
+          </div>
+        </section>
+      </div>
 
       <!-- Manilla sheet: surfaces, approach, field -->
-      <div class="cg-sheet">
+      <div class="cg-sheet" data-scroll="enter">
         <section class="cg-section">
-          <div class="cg-head" data-reveal>
+          <div class="cg-head">
             <div>
-              <p class="cg-label">Surfaces</p>
-              <h2 class="cg-h">One analysis core.<br />Five surfaces.</h2>
+              <p class="cg-label" data-reveal>Surfaces</p>
+              <SplitWords class="cg-h" :lines="['One analysis core.', 'Five surfaces.']" />
             </div>
-            <a class="cg-button" :href="page('/releases/v0.1.0')">
+            <a class="cg-button" :href="page('/releases/v0.1.0')" data-reveal>
               <i aria-hidden="true">+</i>Install and commands
             </a>
           </div>
@@ -363,42 +436,42 @@ onBeforeUnmount(() => {
         </section>
 
         <section class="cg-section">
-          <div class="cg-head" data-reveal>
+          <div class="cg-head">
             <div>
-              <p class="cg-label">How it works</p>
-              <h2 class="cg-h">Source in. Evidence out.</h2>
+              <p class="cg-label" data-reveal>How it works</p>
+              <SplitWords class="cg-h" :lines="['Source in. Evidence out.']" />
             </div>
           </div>
           <div class="cg-steps" data-reveal>
-            <a v-for="(s, i) in steps" :key="s.title" class="cg-step" :href="s.href">
+            <a v-for="(s, i) in steps" :key="s.title" class="cg-step" :href="s.href" :style="{ '--i': i }">
               <div class="cg-step-top">
                 <h3>{{ s.title }}</h3>
                 <span class="cg-index">{{ String(i + 1).padStart(2, '0') }}</span>
               </div>
               <p>{{ s.body }}</p>
               <svg v-if="i === 0" class="cg-step-icon" viewBox="0 0 120 120" aria-hidden="true">
-                <rect x="52" y="14" width="16" height="12" />
-                <path d="M60 26v16M24 42h72M24 42v14M60 42v14M96 42v14" />
-                <rect x="16" y="56" width="16" height="12" />
-                <rect x="52" y="56" width="16" height="12" />
-                <rect x="88" y="56" width="16" height="12" />
-                <path d="M60 68v14M44 82h32M44 82v12M76 82v12" />
-                <rect x="36" y="94" width="16" height="12" />
-                <rect x="68" y="94" width="16" height="12" />
+                <rect x="52" y="14" width="16" height="12" pathLength="1" class="cg-ln" />
+                <path d="M60 26v16M24 42h72M24 42v14M60 42v14M96 42v14" pathLength="1" class="cg-ln" />
+                <rect x="16" y="56" width="16" height="12" pathLength="1" class="cg-ln" />
+                <rect x="52" y="56" width="16" height="12" pathLength="1" class="cg-ln" />
+                <rect x="88" y="56" width="16" height="12" pathLength="1" class="cg-ln" />
+                <path d="M60 68v14M44 82h32M44 82v12M76 82v12" pathLength="1" class="cg-ln" />
+                <rect x="36" y="94" width="16" height="12" pathLength="1" class="cg-ln" />
+                <rect x="68" y="94" width="16" height="12" pathLength="1" class="cg-ln" />
               </svg>
               <svg v-else-if="i === 1" class="cg-step-icon" viewBox="0 0 120 120" aria-hidden="true">
                 <path d="M60 10v100" stroke-dasharray="3 5" />
-                <circle cx="26" cy="60" r="14" />
-                <circle cx="94" cy="60" r="14" />
-                <path d="M38 52c10-22 34-22 44 0" />
-                <path d="M76 46l6 6 3-8" />
-                <path d="M20 60h12M88 54v12M82 60h12" />
+                <circle cx="26" cy="60" r="14" pathLength="1" class="cg-ln" />
+                <circle cx="94" cy="60" r="14" pathLength="1" class="cg-ln" />
+                <path d="M38 52c10-22 34-22 44 0" pathLength="1" class="cg-ln" />
+                <path d="M76 46l6 6 3-8" pathLength="1" class="cg-ln" />
+                <path d="M20 60h12M88 54v12M82 60h12" pathLength="1" class="cg-ln" />
               </svg>
               <svg v-else class="cg-step-icon" viewBox="0 0 120 120" aria-hidden="true">
-                <path d="M14 30V14h16M90 14h16v16M106 90v16H90M30 106H14V90" />
-                <rect x="32" y="32" width="56" height="56" />
+                <path d="M14 30V14h16M90 14h16v16M106 90v16H90M30 106H14V90" pathLength="1" class="cg-ln" />
+                <rect x="32" y="32" width="56" height="56" pathLength="1" class="cg-ln" />
                 <path d="M32 32l56 56" stroke-dasharray="3 5" />
-                <path d="M46 62l10 10 20-24" />
+                <path d="M46 62l10 10 20-24" pathLength="1" class="cg-ln" />
               </svg>
             </a>
           </div>
@@ -406,7 +479,7 @@ onBeforeUnmount(() => {
 
         <section class="cg-field">
           <HalftoneField variant="field" dot="#aaa58c" cross="#222222" :paused="still" />
-          <p class="cg-field-caption cg-label">
+          <p class="cg-field-caption cg-label" data-reveal>
             Deterministic analysis first. Evidence second. Inference third. The model last, and
             never in the graph.
           </p>
@@ -415,20 +488,23 @@ onBeforeUnmount(() => {
 
       <!-- Proof -->
       <section class="cg-proof cg-section">
-        <div class="cg-head" data-reveal>
+        <div class="cg-head">
           <div>
-            <p class="cg-label">Real output</p>
-            <h2 class="cg-h">One relationship,<br />all the way down.</h2>
+            <p class="cg-label" data-reveal>Real output</p>
+            <SplitWords class="cg-h" :lines="['One relationship,', 'all the way down.']" />
           </div>
-          <a class="cg-button" :href="page('/benchmarks/')">
+          <a class="cg-button" :href="page('/benchmarks/')" data-reveal>
             <i aria-hidden="true">+</i>All benchmarks
           </a>
         </div>
 
         <div class="cg-proof-stage">
           <figure class="cg-terminal" data-reveal>
-            <div class="cg-terminal-bar" aria-hidden="true"><i /><i /><i /></div>
-            <pre><code>{{ trace }}</code></pre>
+            <div class="cg-terminal-bar" aria-hidden="true">
+              <i /><i /><i />
+              <span>apache/airflow · 9b43d6a</span>
+            </div>
+            <pre><code><span v-for="(line, i) in traceLines" :key="i" class="cg-tl" :style="{ '--l': i }">{{ line || ' ' }}</span><span class="cg-caret" aria-hidden="true" :style="{ '--l': traceLines.length }" /></code></pre>
             <figcaption>
               Apache Airflow at commit 9b43d6a. Directory paths are shortened to “...” and the
               per-hop observed line is omitted; everything else is verbatim.
@@ -448,12 +524,22 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="cg-feature-row">
-            <a class="cg-feature cg-feature--small tone-khaki" :href="page('/benchmarks/m07-report')" data-reveal>
+            <a
+              class="cg-feature cg-feature--small tone-khaki"
+              :href="page('/benchmarks/m07-report')"
+              data-reveal
+              style="--i: 0"
+            >
               <span class="cg-tag">Benchmarks</span>
               <h3>M07 — validation against seven production repositories</h3>
               <span class="cg-button"><i aria-hidden="true">+</i>Read more</span>
             </a>
-            <a class="cg-feature cg-feature--small tone-pink" :href="page('/benchmarks/cross-platform-parity')" data-reveal>
+            <a
+              class="cg-feature cg-feature--small tone-pink"
+              :href="page('/benchmarks/cross-platform-parity')"
+              data-reveal
+              style="--i: 1"
+            >
               <span class="cg-tag">Benchmarks</span>
               <h3>Cross-platform parity</h3>
               <span class="cg-button"><i aria-hidden="true">+</i>Read more</span>
@@ -464,33 +550,40 @@ onBeforeUnmount(() => {
 
       <!-- Measured -->
       <section class="cg-measured cg-section">
-        <div class="cg-head" data-reveal>
+        <div class="cg-head">
           <div>
-            <p class="cg-label">Measured</p>
-            <h2 class="cg-h">Failures included.</h2>
+            <p class="cg-label" data-reveal>Measured</p>
+            <SplitWords class="cg-h" :lines="['Failures included.']" />
           </div>
-          <a class="cg-button" :href="page('/benchmarks/m08-report')">
+          <a class="cg-button" :href="page('/benchmarks/m08-report')" data-reveal>
             <i aria-hidden="true">+</i>The M08 report
           </a>
         </div>
 
         <div class="cg-cards">
-          <a class="cg-card tone-light" :href="page('/benchmarks/m08-report')" data-reveal>
+          <a class="cg-card tone-light" :href="page('/benchmarks/m08-report')" data-reveal style="--i: 0">
             <span class="cg-card-rule" aria-hidden="true" />
             <span class="cg-tag cg-tag--plain">M08 · seven pinned repositories</span>
-            <p class="cg-card-big">14,932 edges labelled. One false positive.</p>
+            <p class="cg-card-big">
+              <span class="cg-sr">14,932</span><span aria-hidden="true" data-count="14,932">14,932</span>
+              edges labelled. One false positive.
+            </p>
             <p class="cg-card-small">
               One false positive among 11,221 independently verified edges. 24.9% (3,711) could not
               be verified from source, and they concentrate where evidence is weakest — so every
               figure is an upper bound.
             </p>
           </a>
-          <a class="cg-card tone-green" :href="page('/benchmarks/m08-confidence-policy')" data-reveal>
+          <a class="cg-card tone-green" :href="page('/benchmarks/m08-confidence-policy')" data-reveal style="--i: 1">
             <svg class="cg-orbit" viewBox="0 0 320 320" aria-hidden="true">
-              <circle cx="160" cy="160" r="150" />
-              <circle cx="160" cy="160" r="112" stroke-dasharray="2 6" />
-              <circle cx="160" cy="160" r="76" />
-              <circle cx="160" cy="160" r="42" stroke-dasharray="2 6" />
+              <g class="cg-orbit-rings">
+                <circle cx="160" cy="160" r="150" />
+                <circle cx="160" cy="160" r="112" stroke-dasharray="2 6" />
+                <circle cx="160" cy="160" r="76" />
+                <circle cx="160" cy="160" r="42" stroke-dasharray="2 6" />
+              </g>
+              <g class="cg-orbit-sat"><circle cx="160" cy="48" r="4" /></g>
+              <g class="cg-orbit-sat cg-orbit-sat--slow"><circle cx="160" cy="10" r="3" /></g>
               <circle class="cg-orbit-core" cx="160" cy="160" r="9" />
               <g class="cg-orbit-pill" transform="translate(206 44)">
                 <rect x="0" y="0" width="86" height="24" rx="12" />
@@ -509,16 +602,16 @@ onBeforeUnmount(() => {
           </a>
         </div>
 
-        <dl class="cg-stats" data-reveal>
-          <div>
-            <dt>0.907</dt>
+        <dl class="cg-stats">
+          <div data-reveal style="--i: 0">
+            <dt><span class="cg-sr">0.907</span><span aria-hidden="true" data-count="0.907">0.907</span></dt>
             <dd>HttpCall recall · Airflow only · 117 of 129 operations its generated client declares that a route serves</dd>
           </div>
-          <div>
-            <dt>0.744</dt>
+          <div data-reveal style="--i: 1">
+            <dt><span class="cg-sr">0.744</span><span aria-hidden="true" data-count="0.744">0.744</span></dt>
             <dd>OrmAccess recall · Airflow only · 1,401 of 1,883 import-bound uses of models that declare a table</dd>
           </div>
-          <div>
+          <div data-reveal style="--i: 2">
             <dt>3 of 5</dt>
             <dd>End-to-end chains · Airflow only · chains whose every hop is independently readable</dd>
           </div>
@@ -531,23 +624,28 @@ onBeforeUnmount(() => {
 
       <!-- Principles -->
       <section class="cg-principles cg-section">
-        <div class="cg-principles-lead" data-reveal>
-          <p class="cg-label">Principles</p>
-          <h2 class="cg-display">Unknown stays unknown.</h2>
-          <div class="cg-principles-copy">
+        <div>
+          <p class="cg-label" data-reveal>Principles</p>
+          <SplitWords class="cg-display" :lines="['Unknown stays', 'unknown.']" />
+          <div class="cg-principles-copy" data-reveal>
             <p>
               A plausible-looking guess is worse than a gap, because it is indistinguishable from a
               derived fact. Where the evidence is thin, Cartograph refuses. Contributions are
               welcome — real repositories that break the resolver most of all.
             </p>
             <a class="cg-button" :href="repo('CONTRIBUTING.md')">
-              <i aria-hidden="true">+</i>Contributing
+              <i aria-hidden="true">+</i>Contributing guide
             </a>
           </div>
-          <figure class="cg-install">
-            <figcaption class="cg-label">Try it</figcaption>
+          <div class="cg-install" data-reveal>
+            <div class="cg-install-head">
+              <p class="cg-label">Try it</p>
+              <button class="cg-copy" type="button" @click="copyInstall">{{ copied ? 'Copied' : 'Copy' }}</button>
+              <span class="cg-sr" aria-live="polite">{{ copied ? 'Command copied' : '' }}</span>
+            </div>
             <pre><code>{{ install }}</code></pre>
-          </figure>
+            <a class="cg-install-more" :href="page('/releases/v0.1.0')">Installation and every command →</a>
+          </div>
         </div>
 
         <ol class="cg-values" data-reveal>
@@ -556,6 +654,7 @@ onBeforeUnmount(() => {
             :key="p.title"
             class="cg-value"
             :class="[`tone-${p.tone}`, { 'is-open': principle === i }]"
+            :style="{ '--i': i }"
             @mouseenter="principle = i"
           >
             <button type="button" :aria-expanded="principle === i" @click="principle = i" @focus="principle = i">
@@ -573,16 +672,10 @@ onBeforeUnmount(() => {
       </section>
 
       <!-- Corpus -->
-      <section class="cg-corpus">
-        <div class="cg-section cg-corpus-head cg-head" data-reveal>
-          <div>
-            <p class="cg-label">Corpus</p>
-            <h2 class="cg-h">Measured on seven pinned<br />production repositories.</h2>
-          </div>
-          <!-- WCAG 2.2.2: anything that moves for more than five seconds can be paused. -->
-          <button class="cg-button cg-toggle" type="button" :aria-pressed="still" @click="still = !still">
-            <i aria-hidden="true">{{ still ? '▶' : '‖' }}</i>Pause motion
-          </button>
+      <section class="cg-corpus" data-scroll="enter">
+        <div class="cg-section cg-corpus-head">
+          <p class="cg-label" data-reveal>Corpus</p>
+          <SplitWords class="cg-h" :lines="['Measured on seven pinned', 'production repositories.']" />
         </div>
         <div class="cg-marquee">
           <ul aria-label="The seven repositories in the benchmark corpus">
@@ -601,15 +694,19 @@ onBeforeUnmount(() => {
         <HalftoneField variant="dome" dot="#c9c6b8" cross="#eddfee" :paused="still" />
       </div>
       <div class="cg-footer-grid">
-        <div>
-          <p class="cg-label">Install</p>
-          <pre class="cg-footer-code"><code>{{ install }}</code></pre>
+        <div data-reveal style="--i: 0">
+          <p class="cg-label">Get started</p>
+          <ul>
+            <li><a :href="page('/releases/v0.1.0')">Install and commands</a></li>
+            <li><a :href="page('/development/cli')">Command-line reference</a></li>
+            <li><a :href="page('/releases/')">Releases</a></li>
+          </ul>
         </div>
-        <div>
+        <div data-reveal style="--i: 1">
           <p class="cg-label">Status</p>
           <p>Milestones M00–M16 accepted.<br />M17, the public launch, in progress.<br />Version 0.1.0.</p>
         </div>
-        <div>
+        <div data-reveal style="--i: 2">
           <p class="cg-label">Documentation</p>
           <ul>
             <li><a :href="page('/writeup/technical-writeup')">Technical writeup</a></li>
@@ -620,10 +717,10 @@ onBeforeUnmount(() => {
             <li><a :href="page('/security/')">Security</a></li>
           </ul>
         </div>
-        <div>
+        <div data-reveal style="--i: 3">
           <p class="cg-label">Project</p>
           <ul>
-            <li><a :href="REPO">GitHub</a></li>
+            <li><a :href="REPO">Source on GitHub</a></li>
             <li><a :href="repo('ROADMAP.md')">Roadmap</a></li>
             <li><a :href="repo('CHANGELOG.md')">Changelog</a></li>
             <li><a :href="repo('CONTRIBUTING.md')">Contributing</a></li>
@@ -631,10 +728,13 @@ onBeforeUnmount(() => {
           </ul>
         </div>
       </div>
+      <div class="cg-wordmark" aria-hidden="true" data-split>
+        <span v-for="(ch, i) in 'CARTOGRAPH'" :key="i" class="cg-word"><span class="cg-word-in" :style="{ '--w': i }">{{ ch }}</span></span>
+      </div>
       <div class="cg-footer-base">
         <span>© Cartograph contributors</span>
         <a :href="repo('LICENSE')">Apache-2.0 licence</a>
-        <span>Built with VitePress</span>
+        <span>Built with <a href="https://vitepress.dev/">VitePress</a></span>
       </div>
     </footer>
   </div>
@@ -663,6 +763,15 @@ onBeforeUnmount(() => {
 .cg :focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 3px;
+}
+
+.cg-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .cg-section {
@@ -702,7 +811,7 @@ onBeforeUnmount(() => {
   margin-bottom: clamp(2rem, 1.4rem + 1.8vw, 3.25rem);
 }
 
-/* The "+ LABEL" button. */
+/* The "+ LABEL" button. It leans toward a fine pointer (--mx, --my). */
 .cg-button {
   display: inline-flex;
   align-items: center;
@@ -714,6 +823,8 @@ onBeforeUnmount(() => {
   text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
+  translate: var(--mx, 0) var(--my, 0);
+  transition: translate 0.4s var(--cg-ease);
 }
 
 .cg-button i {
@@ -729,7 +840,7 @@ onBeforeUnmount(() => {
   transition:
     background-color 0.3s var(--cg-ease),
     color 0.3s var(--cg-ease),
-    transform 0.3s var(--cg-ease);
+    transform 0.4s var(--cg-ease);
 }
 
 .cg-button:hover i,
@@ -753,12 +864,17 @@ a:hover > .cg-button i {
   padding: 0 var(--cg-gutter);
   transition:
     background-color 0.4s var(--cg-ease),
-    height 0.4s var(--cg-ease);
+    height 0.4s var(--cg-ease),
+    transform 0.6s var(--cg-ease);
 }
 
 .cg-header.is-solid {
   height: 60px;
   background: var(--cg-black);
+}
+
+.cg-header.is-hidden:not(:focus-within) {
+  transform: translateY(-100%);
 }
 
 .cg-logo {
@@ -778,12 +894,24 @@ a:hover > .cg-button i {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.6;
+  transition: transform 0.8s var(--cg-ease);
 }
 
+.cg-logo:hover svg {
+  transform: rotate(-120deg);
+}
+
+.cg-header-actions {
+  display: flex;
+  align-items: center;
+  gap: clamp(1rem, 0.5rem + 1.5vw, 2rem);
+}
+
+.cg-motion-toggle,
 .cg-menu-button {
   display: inline-flex;
   align-items: center;
-  gap: 0.8rem;
+  gap: 0.6rem;
   padding: 0.5rem 0;
   color: var(--cg-light-pink);
   font-family: var(--cg-font);
@@ -791,6 +919,29 @@ a:hover > .cg-button i {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.cg-menu-button {
+  gap: 0.8rem;
+}
+
+.cg-motion-toggle i {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid currentColor;
+  border-radius: 0.3em;
+  font-style: normal;
+  font-size: 9px;
+  transition:
+    background-color 0.3s var(--cg-ease),
+    color 0.3s var(--cg-ease);
+}
+
+.cg-motion-toggle[aria-pressed='true'] i {
+  background: var(--cg-light-pink);
+  color: var(--cg-black);
 }
 
 .cg-plus {
@@ -818,6 +969,10 @@ a:hover > .cg-button i {
   transform: rotate(135deg);
 }
 
+.cg-menu-button:hover .cg-plus:not(.is-open) {
+  transform: rotate(90deg);
+}
+
 .cg-menu {
   position: fixed;
   inset: 0;
@@ -830,7 +985,7 @@ a:hover > .cg-button i {
   overflow-y: auto;
   background: var(--cg-black);
   clip-path: inset(0 0 0 0);
-  transition: clip-path 0.7s var(--cg-ease);
+  transition: clip-path 0.8s var(--cg-ease);
 }
 
 .cg-menu-enter-from,
@@ -856,12 +1011,12 @@ a:hover > .cg-button i {
   text-transform: uppercase;
   transition:
     color 0.3s var(--cg-ease),
-    transform 0.4s var(--cg-ease);
+    transform 0.5s var(--cg-ease);
 }
 
 .cg-menu-list a:hover {
   color: var(--cg-light-pink);
-  transform: translateX(0.5rem);
+  transform: translateX(0.75rem);
 }
 
 .cg-menu-list small {
@@ -878,6 +1033,27 @@ a:hover > .cg-button i {
   padding-bottom: 0.5rem;
 }
 
+.cg-menu-link {
+  display: block;
+  width: fit-content;
+  padding: 0.15rem 0;
+  font-size: 15px;
+  font-weight: 500;
+  border-bottom: 1px solid rgba(237, 223, 238, 0.3);
+  transition:
+    color 0.3s var(--cg-ease),
+    border-color 0.3s var(--cg-ease);
+}
+
+.cg-menu-link + .cg-menu-link {
+  margin-top: 0.4rem;
+}
+
+.cg-menu-link:hover {
+  color: var(--cg-pink);
+  border-color: var(--cg-pink);
+}
+
 .cg-menu-small {
   margin: 0;
   font-family: var(--cg-font-mono);
@@ -885,32 +1061,26 @@ a:hover > .cg-button i {
   line-height: 1.6;
 }
 
-.cg-menu-aside a:hover {
-  color: var(--cg-pink);
-}
+/* ---------- Stage: a pinned hero, and the statement over it ---------- */
 
-.cg-menu-code,
-.cg-footer-code {
-  margin: 0;
-  font-family: var(--cg-font-mono);
-  font-size: 12px;
-  line-height: 1.7;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+.cg-stage {
+  position: relative;
 }
-
-/* ---------- Hero ---------- */
 
 .cg-hero {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
   min-height: 100svh;
   padding: 120px var(--cg-gutter) var(--cg-gutter);
+  overflow: hidden;
 }
 
 .cg-hero-title {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
@@ -943,16 +1113,13 @@ a:hover > .cg-button i {
 
 .cg-line > span {
   display: block;
-  animation: cg-rise 1.1s var(--cg-ease) both;
+  animation: cg-rise 1.2s var(--cg-ease) backwards;
   animation-delay: var(--d, 0s);
 }
 
 @keyframes cg-rise {
   from {
     transform: translateY(105%);
-  }
-  to {
-    transform: translateY(0);
   }
 }
 
@@ -968,7 +1135,33 @@ a:hover > .cg-button i {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: rgba(237, 223, 238, 0.6);
-  animation: cg-fade 1.2s 0.7s var(--cg-ease) both;
+  animation: cg-fade 1.2s 0.7s var(--cg-ease) backwards;
+}
+
+.cg-scroll-cue {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--cg-gutter) + 2.25rem);
+  width: 1px;
+  height: 48px;
+  overflow: hidden;
+  background: rgba(237, 223, 238, 0.18);
+}
+
+.cg-scroll-cue i {
+  position: absolute;
+  inset: 0;
+  background: var(--cg-pink);
+  animation: cg-cue 2.2s var(--cg-ease) infinite;
+}
+
+@keyframes cg-cue {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(100%);
+  }
 }
 
 @keyframes cg-fade {
@@ -981,11 +1174,13 @@ a:hover > .cg-button i {
 
 .cg-intro {
   position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
   align-items: end;
   gap: 3rem 4rem;
   padding: var(--pad-section) var(--cg-gutter) calc(var(--pad-section) * 1.6);
+  background: var(--cg-black);
 }
 
 .cg-statement {
@@ -1056,6 +1251,7 @@ a:hover > .cg-button i {
   color: var(--cg-black);
   background: var(--cg-manilla);
   border-radius: 1.25rem 1.25rem 0 0;
+  transform-origin: 50% 0;
 }
 
 /* Accordion of surfaces. */
@@ -1075,6 +1271,10 @@ a:hover > .cg-button i {
   flex: 1 1 0;
 }
 
+.cg-acc-item:not(.is-open):hover {
+  flex-basis: 84px;
+}
+
 .cg-acc-strip {
   position: absolute;
   inset: 0;
@@ -1092,6 +1292,11 @@ a:hover > .cg-button i {
   font-style: normal;
   font-size: 18px;
   line-height: 1;
+  transition: transform 0.5s var(--cg-ease);
+}
+
+.cg-acc-strip:hover i {
+  transform: rotate(90deg);
 }
 
 .cg-acc-strip-label {
@@ -1117,7 +1322,6 @@ a:hover > .cg-button i {
   justify-content: space-between;
   min-width: min(560px, 80vw);
   padding: clamp(1.25rem, 0.9rem + 1.2vw, 2rem);
-  animation: cg-fade 0.6s 0.25s var(--cg-ease) both;
 }
 
 .cg-acc-panel[hidden] {
@@ -1189,19 +1393,32 @@ a:hover > .cg-button i {
 }
 
 .cg-step {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 430px;
   padding: clamp(1.25rem, 0.9rem + 1.2vw, 2rem);
-  transition: background-color 0.4s var(--cg-ease);
+  overflow: hidden;
+}
+
+/* A fill that rises from the bottom edge on hover. */
+.cg-step::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgba(255, 255, 255, 0.45);
+  transform: scaleY(0);
+  transform-origin: 50% 100%;
+  transition: transform 0.6s var(--cg-ease);
+}
+
+.cg-step:hover::before {
+  transform: scaleY(1);
 }
 
 .cg-step + .cg-step {
   border-left: 1px solid rgba(34, 34, 34, 0.18);
-}
-
-.cg-step:hover {
-  background: rgba(255, 255, 255, 0.35);
 }
 
 .cg-step-top {
@@ -1238,7 +1455,7 @@ a:hover > .cg-button i {
 }
 
 .cg-step:hover .cg-step-icon {
-  transform: translateY(-6px);
+  transform: translateY(-8px) rotate(-3deg);
 }
 
 /* Halftone field. */
@@ -1253,7 +1470,7 @@ a:hover > .cg-button i {
   inset: auto var(--cg-gutter) 1.5rem;
   margin: 0;
   text-align: center;
-  color: rgba(34, 34, 34, 0.66);
+  color: rgba(34, 34, 34, 0.72);
   pointer-events: none;
 }
 
@@ -1261,6 +1478,8 @@ a:hover > .cg-button i {
 
 .cg-proof,
 .cg-measured {
+  position: relative;
+  z-index: 1;
   color: var(--cg-black);
   background: var(--cg-white);
 }
@@ -1284,6 +1503,7 @@ a:hover > .cg-button i {
 
 .cg-terminal-bar {
   display: flex;
+  align-items: center;
   gap: 6px;
   margin-bottom: 1.75rem;
 }
@@ -1295,6 +1515,14 @@ a:hover > .cg-button i {
   border-radius: 50%;
 }
 
+.cg-terminal-bar span {
+  margin-left: 0.75rem;
+  font-family: var(--cg-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: rgba(237, 223, 238, 0.6);
+}
+
 .cg-terminal pre {
   margin: 0;
   font-family: var(--cg-font-mono);
@@ -1303,13 +1531,26 @@ a:hover > .cg-button i {
   white-space: pre;
 }
 
+.cg-tl {
+  display: block;
+}
+
+.cg-caret {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.15em;
+  margin-top: 0.2em;
+  background: var(--cg-pink);
+  vertical-align: text-bottom;
+}
+
 .cg-terminal figcaption {
   max-width: 60ch;
   margin-top: 1.75rem;
   font-family: var(--cg-font-mono);
   font-size: 11px;
   line-height: 1.6;
-  color: rgba(237, 223, 238, 0.55);
+  color: rgba(237, 223, 238, 0.6);
 }
 
 .cg-feature {
@@ -1354,6 +1595,11 @@ a:hover > .cg-button i {
 
 .cg-feature--small h3 {
   font-size: clamp(0.95rem, 0.8rem + 0.45vw, 1.2rem);
+  transition: translate 0.5s var(--cg-ease);
+}
+
+.cg-feature--small:hover h3 {
+  translate: 0 -4px;
 }
 
 .cg-tag {
@@ -1411,6 +1657,13 @@ a:hover > .cg-button i {
     linear-gradient(currentColor, currentColor) 70% 0 / 1px 100% no-repeat,
     linear-gradient(90deg, currentColor, currentColor) 0 22% / 100% 1px no-repeat;
   opacity: 0.25;
+  transition: background-position 1.2s var(--cg-ease);
+}
+
+.cg-card:hover .cg-card-rule {
+  background-position:
+    62% 0,
+    0 30%;
 }
 
 .cg-card-big {
@@ -1421,6 +1674,8 @@ a:hover > .cg-button i {
   font-weight: 500;
   line-height: 1;
   text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.4s var(--cg-ease);
 }
 
 .cg-card-big--small {
@@ -1447,12 +1702,35 @@ a:hover > .cg-button i {
   fill: none;
   stroke: rgba(237, 223, 238, 0.5);
   stroke-width: 1;
+}
+
+.cg-orbit-rings,
+.cg-orbit-sat {
+  transform-box: view-box;
+  transform-origin: 160px 160px;
+}
+
+.cg-orbit-rings {
   animation: cg-spin 80s linear infinite;
 }
 
+.cg-orbit-sat {
+  animation: cg-spin 9s linear infinite;
+}
+
+.cg-orbit-sat--slow {
+  animation-duration: 23s;
+  animation-direction: reverse;
+}
+
+.cg-orbit-sat circle,
 .cg-orbit-core {
   fill: var(--cg-pink);
   stroke: none;
+}
+
+.cg-orbit-sat--slow circle {
+  fill: var(--cg-light-pink);
 }
 
 .cg-orbit-pill rect {
@@ -1478,6 +1756,10 @@ a:hover > .cg-button i {
   color: var(--cg-pink);
 }
 
+.cg-card.tone-green:hover .cg-orbit-sat {
+  animation-duration: 3s;
+}
+
 .cg-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1485,15 +1767,26 @@ a:hover > .cg-button i {
   margin: clamp(2.5rem, 2rem + 2vw, 4rem) 0 0;
 }
 
-.cg-stats div {
+.cg-stats > div {
+  position: relative;
   padding-top: 1.25rem;
-  border-top: 1px solid rgba(34, 34, 34, 0.2);
+}
+
+/* The rule above each figure draws across as it enters. */
+.cg-stats > div::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: rgba(34, 34, 34, 0.2);
+  transform-origin: 0 50%;
 }
 
 .cg-stats dt {
   font-size: clamp(2rem, 1.2rem + 2.4vw, 3.5rem);
   font-weight: 500;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .cg-stats dd {
@@ -1516,6 +1809,8 @@ a:hover > .cg-button i {
 /* ---------- Principles ---------- */
 
 .cg-principles {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: clamp(2rem, 1rem + 3vw, 4.5rem);
@@ -1553,6 +1848,38 @@ a:hover > .cg-button i {
   background: var(--cg-black);
 }
 
+.cg-install-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.cg-install-head .cg-label {
+  margin: 0;
+}
+
+.cg-copy {
+  padding: 0.3rem 0.65rem;
+  font-family: var(--cg-font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: inherit;
+  border: 1px solid rgba(237, 223, 238, 0.4);
+  border-radius: 0.3em;
+  transition:
+    background-color 0.3s var(--cg-ease),
+    color 0.3s var(--cg-ease);
+}
+
+.cg-copy:hover {
+  background: var(--cg-light-pink);
+  color: var(--cg-black);
+}
+
 .cg-install pre {
   margin: 0;
   font-family: var(--cg-font-mono);
@@ -1560,6 +1887,22 @@ a:hover > .cg-button i {
   line-height: 1.7;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.cg-install-more {
+  display: inline-block;
+  margin-top: 1rem;
+  font-family: var(--cg-font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(237, 223, 238, 0.4);
+  transition: border-color 0.3s var(--cg-ease);
+}
+
+.cg-install-more:hover {
+  border-color: var(--cg-pink);
 }
 
 .cg-values {
@@ -1627,11 +1970,13 @@ a:hover > .cg-button i {
 /* ---------- Corpus (green) ---------- */
 
 .cg-corpus {
+  position: relative;
+  z-index: 2;
+  margin-top: -1.25rem;
   color: var(--cg-light-pink);
   background: var(--cg-green);
   border-radius: 1.25rem 1.25rem 0 0;
-  margin-top: -1.25rem;
-  position: relative;
+  transform-origin: 50% 0;
 }
 
 .cg-corpus-head {
@@ -1662,6 +2007,11 @@ a:hover > .cg-button i {
   letter-spacing: 0.02em;
   text-transform: uppercase;
   white-space: nowrap;
+  transition: color 0.3s var(--cg-ease);
+}
+
+.cg-marquee li:hover {
+  color: var(--cg-pink);
 }
 
 @keyframes cg-marquee {
@@ -1670,26 +2020,11 @@ a:hover > .cg-button i {
   }
 }
 
-.cg-marquee:hover ul,
-.cg.is-still .cg-marquee ul,
-.cg.is-still .cg-badge > svg:first-child,
-.cg.is-still .cg-orbit {
-  animation-play-state: paused;
-}
-
-.cg-toggle[aria-pressed='true'] i {
-  background: var(--cg-light-pink);
-  border-color: var(--cg-light-pink);
-  color: var(--cg-green);
-}
-
-.cg-toggle:hover i {
-  transform: none;
-}
-
 /* ---------- Footer ---------- */
 
 .cg-footer {
+  position: relative;
+  z-index: 2;
   color: var(--cg-light-pink);
   background: var(--cg-green);
 }
@@ -1700,7 +2035,7 @@ a:hover > .cg-button i {
 
 .cg-footer-grid {
   display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr 1fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 2.5rem;
   padding: clamp(3rem, 2rem + 3vw, 5rem) var(--cg-gutter) 3rem;
 }
@@ -1721,18 +2056,39 @@ a:hover > .cg-button i {
   list-style: none;
 }
 
-.cg-footer-grid li a {
+/* Footer links underline from the left on hover. */
+.cg-footer-grid li a,
+.cg-footer-base a {
   display: inline-block;
   padding: 0.15rem 0;
+  background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat;
+  transition:
+    background-size 0.5s var(--cg-ease),
+    color 0.3s var(--cg-ease);
+}
+
+.cg-footer-grid li a {
   font-size: 14px;
   font-weight: 500;
   text-transform: uppercase;
-  transition: color 0.3s var(--cg-ease);
 }
 
 .cg-footer-grid li a:hover,
 .cg-footer-base a:hover {
   color: var(--cg-pink);
+  background-size: 100% 1px;
+}
+
+.cg-wordmark {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 var(--cg-gutter);
+  color: rgba(237, 223, 238, 0.09);
+  font-size: clamp(3.5rem, 0.5rem + 15.2vw, 15rem);
+  font-weight: 600;
+  line-height: 0.82;
+  letter-spacing: -0.02em;
+  user-select: none;
 }
 
 .cg-footer-base {
@@ -1748,20 +2104,234 @@ a:hover > .cg-button i {
   text-transform: uppercase;
 }
 
-/* ---------- Scroll reveal (only once JS has run) ---------- */
+/* ---------- Cursor ring ---------- */
 
-.cg-js [data-reveal] {
+.cg-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  display: none;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border: 1.5px solid #ffffff;
+  border-radius: 50%;
+  pointer-events: none;
+  mix-blend-mode: difference;
+  opacity: 0;
+  transition:
+    opacity 0.3s var(--cg-ease),
+    width 0.4s var(--cg-ease),
+    height 0.4s var(--cg-ease),
+    margin 0.4s var(--cg-ease),
+    background-color 0.4s var(--cg-ease);
+}
+
+.cg-motion .cg-cursor {
+  display: block;
+}
+
+.cg-cursor.is-on {
+  opacity: 1;
+}
+
+.cg-cursor.is-over {
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  background: #ffffff;
+}
+
+/* ---------- Motion ----------
+   Starting states exist only under .cg-motion: without JavaScript, with motion
+   paused, or under prefers-reduced-motion, everything is already in place. */
+
+.cg-motion [data-reveal] {
+  opacity: 0;
+  transform: translateY(36px);
+  transition:
+    opacity 1s var(--cg-ease) calc(var(--i, 0) * 110ms),
+    transform 1.2s var(--cg-ease) calc(var(--i, 0) * 110ms);
+}
+
+.cg-motion [data-reveal].is-in,
+.cg-motion [data-reveal]:focus-within {
+  opacity: 1;
+  transform: none;
+}
+
+/* Split words — headings and the statement — are styled in style.css: they
+   are rendered inside SplitWords, where this component's scoped rules do not
+   reach. */
+
+/* The hero's two halves part and fade as the statement rises over them. */
+.cg-motion .cg-hero-left {
+  transform: translate3d(calc(var(--p, 0) * -24vw), 0, 0);
+}
+
+.cg-motion .cg-hero-right {
+  transform: translate3d(calc(var(--p, 0) * 24vw), 0, 0);
+}
+
+/* Gone by the time the statement has covered the middle of the screen. */
+.cg-motion .cg-hero-title {
+  opacity: max(0, calc(1 - var(--p, 0) * 1.5));
+}
+
+.cg-motion .cg-hero-foot,
+.cg-motion .cg-scroll-cue {
+  opacity: max(0, calc(1 - var(--p, 0) * 4));
+}
+
+.cg-motion .cg-hero :deep(.cg-graph) {
+  opacity: max(0, calc(1 - var(--p, 0) * 1.2));
+  transform: scale(calc(1 + var(--p, 0) * 0.25));
+}
+
+/* The manilla and green panels rise and widen into place. */
+.cg-motion .cg-sheet,
+.cg-motion .cg-corpus {
+  transform: translate3d(0, calc((1 - var(--p, 1)) * 12vh), 0) scale(calc(0.92 + var(--p, 1) * 0.08));
+  will-change: transform;
+}
+
+/* The accordion's open panel lifts its contents in. */
+.cg-motion .cg-acc-top,
+.cg-motion .cg-acc-bottom > * {
+  animation: cg-rise-in 0.9s var(--cg-ease) backwards;
+}
+
+.cg-motion .cg-acc-bottom > :nth-child(1) {
+  animation-delay: 0.2s;
+}
+.cg-motion .cg-acc-bottom > :nth-child(2) {
+  animation-delay: 0.28s;
+}
+.cg-motion .cg-acc-bottom > :nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes cg-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+
+/* Step cards follow one another in, and their icons draw themselves. */
+.cg-motion .cg-steps .cg-step {
   opacity: 0;
   transform: translateY(28px);
   transition:
-    opacity 1s var(--cg-ease),
-    transform 1s var(--cg-ease);
+    opacity 0.9s var(--cg-ease) calc(var(--i) * 140ms),
+    transform 1.1s var(--cg-ease) calc(var(--i) * 140ms);
 }
 
-.cg-js [data-reveal].is-in,
-.cg-js [data-reveal]:focus-within {
+.cg-motion .cg-steps.is-in .cg-step,
+.cg-motion .cg-steps:focus-within .cg-step {
   opacity: 1;
   transform: none;
+}
+
+/* A keyframe animation, not a transition: in testing, a transition on these
+   shapes' stroke-dashoffset never started in Chromium and the lines stayed
+   undrawn; the animation runs. Each drawn shape carries pathLength="1". */
+.cg-motion .cg-ln {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.cg-motion .cg-steps.is-in .cg-ln {
+  animation: cg-draw 1.8s var(--cg-ease) calc(0.4s + var(--i) * 0.18s) both;
+}
+
+@keyframes cg-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* The terminal types its output one line at a time. */
+.cg-motion .cg-terminal .cg-tl {
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.42s steps(28, end) calc(0.35s + var(--l) * 60ms);
+}
+
+.cg-motion .cg-terminal.is-in .cg-tl {
+  clip-path: inset(0 0 0 0);
+}
+
+.cg-motion .cg-terminal .cg-caret {
+  opacity: 0;
+}
+
+/* Four blinks and done: nothing blinks for more than five seconds. */
+.cg-motion .cg-terminal.is-in .cg-caret {
+  animation: cg-blink 1s steps(1, end) calc(0.35s + var(--l) * 60ms) 4 forwards;
+}
+
+@keyframes cg-blink {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* The rule above each figure draws across. */
+.cg-motion .cg-stats > div::before {
+  transform: scaleX(0);
+  transition: transform 1.2s var(--cg-ease) calc(0.2s + var(--i, 0) * 110ms);
+}
+
+.cg-motion .cg-stats > div.is-in::before {
+  transform: none;
+}
+
+/* Principles slide in one after another. */
+.cg-motion .cg-values .cg-value {
+  opacity: 0;
+  transform: translateX(32px);
+  transition:
+    opacity 0.8s var(--cg-ease) calc(var(--i) * 90ms),
+    transform 1s var(--cg-ease) calc(var(--i) * 90ms);
+}
+
+.cg-motion .cg-values.is-in .cg-value,
+.cg-motion .cg-values:focus-within .cg-value {
+  opacity: 1;
+  transform: none;
+}
+
+/* Menu links cascade in each time it opens. */
+.cg-motion .cg-menu-list li {
+  animation: cg-rise-in 0.9s var(--cg-ease) backwards;
+  animation-delay: calc(0.15s + var(--i) * 55ms);
+}
+
+.cg-motion .cg-menu-aside > div {
+  animation: cg-rise-in 0.9s 0.5s var(--cg-ease) backwards;
+}
+
+/* Paused: every looping animation holds where it is. */
+.cg.is-still .cg-marquee ul,
+.cg.is-still .cg-badge > svg:first-child,
+.cg.is-still .cg-orbit-rings,
+.cg.is-still .cg-orbit-sat,
+.cg.is-still .cg-scroll-cue i {
+  animation-play-state: paused;
+}
+
+.cg-marquee:hover ul {
+  animation-play-state: paused;
 }
 
 /* ---------- Narrow screens ---------- */
@@ -1837,7 +2407,8 @@ a:hover > .cg-button i {
   }
 
   .cg-acc-item,
-  .cg-acc-item.is-open {
+  .cg-acc-item.is-open,
+  .cg-acc-item:not(.is-open):hover {
     flex: none;
   }
 
@@ -1880,8 +2451,19 @@ a:hover > .cg-button i {
     justify-content: center;
   }
 
-  .cg-hero-foot span:nth-child(2) {
+  .cg-hero-foot span:nth-child(2),
+  .cg-scroll-cue {
     display: none;
+  }
+
+  /* The toggle keeps its name for assistive technology, and shows its icon. */
+  .cg-motion-toggle span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .cg-feature-row {
@@ -1903,11 +2485,6 @@ a:hover > .cg-button i {
   .cg *::after {
     animation: none !important;
     transition: none !important;
-  }
-
-  .cg-js [data-reveal] {
-    opacity: 1;
-    transform: none;
   }
 }
 </style>
