@@ -158,6 +158,8 @@ const menuOpen = ref(false)
 const scrolled = ref(false)
 const surface = ref(0)
 const principle = ref(0)
+/** The viewer paused the page's looping motion. */
+const still = ref(false)
 
 const cleanups: Array<() => void> = []
 
@@ -207,7 +209,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="root" class="cg">
+  <div ref="root" class="cg" :class="{ 'is-still': still }">
     <!-- Header -->
     <header class="cg-header" :class="{ 'is-solid': scrolled || menuOpen }">
       <a class="cg-logo" :href="withBase('/')" aria-label="Cartograph — home">
@@ -259,7 +261,8 @@ onBeforeUnmount(() => {
       </nav>
     </Transition>
 
-    <main>
+    <!-- While the menu is open, only the header and the menu take focus. -->
+    <main :inert="menuOpen || undefined">
       <!-- Hero -->
       <section class="cg-hero">
         <h1 class="cg-hero-title">
@@ -322,7 +325,7 @@ onBeforeUnmount(() => {
               <p class="cg-label">Surfaces</p>
               <h2 class="cg-h">One analysis core.<br />Five surfaces.</h2>
             </div>
-            <a class="cg-button cg-button--dark" :href="page('/releases/v0.1.0')">
+            <a class="cg-button" :href="page('/releases/v0.1.0')">
               <i aria-hidden="true">+</i>Install and commands
             </a>
           </div>
@@ -402,7 +405,7 @@ onBeforeUnmount(() => {
         </section>
 
         <section class="cg-field">
-          <HalftoneField variant="field" dot="#aaa58c" cross="#222222" />
+          <HalftoneField variant="field" dot="#aaa58c" cross="#222222" :paused="still" />
           <p class="cg-field-caption cg-label">
             Deterministic analysis first. Evidence second. Inference third. The model last, and
             never in the graph.
@@ -417,7 +420,7 @@ onBeforeUnmount(() => {
             <p class="cg-label">Real output</p>
             <h2 class="cg-h">One relationship,<br />all the way down.</h2>
           </div>
-          <a class="cg-button cg-button--dark" :href="page('/benchmarks/')">
+          <a class="cg-button" :href="page('/benchmarks/')">
             <i aria-hidden="true">+</i>All benchmarks
           </a>
         </div>
@@ -439,7 +442,7 @@ onBeforeUnmount(() => {
               An HTTP boundary, a Python handler and a SQLAlchemy model, with no shared symbol table
               — and every hop carries the evidence for itself.
             </p>
-            <a class="cg-button cg-button--dark" :href="page('/resolver/')">
+            <a class="cg-button" :href="page('/resolver/')">
               <i aria-hidden="true">+</i>How the resolver works
             </a>
           </div>
@@ -448,12 +451,12 @@ onBeforeUnmount(() => {
             <a class="cg-feature cg-feature--small tone-khaki" :href="page('/benchmarks/m07-report')" data-reveal>
               <span class="cg-tag">Benchmarks</span>
               <h3>M07 — validation against seven production repositories</h3>
-              <span class="cg-button cg-button--dark"><i aria-hidden="true">+</i>Read more</span>
+              <span class="cg-button"><i aria-hidden="true">+</i>Read more</span>
             </a>
             <a class="cg-feature cg-feature--small tone-pink" :href="page('/benchmarks/cross-platform-parity')" data-reveal>
               <span class="cg-tag">Benchmarks</span>
               <h3>Cross-platform parity</h3>
-              <span class="cg-button cg-button--dark"><i aria-hidden="true">+</i>Read more</span>
+              <span class="cg-button"><i aria-hidden="true">+</i>Read more</span>
             </a>
           </div>
         </div>
@@ -466,7 +469,7 @@ onBeforeUnmount(() => {
             <p class="cg-label">Measured</p>
             <h2 class="cg-h">Failures included.</h2>
           </div>
-          <a class="cg-button cg-button--dark" :href="page('/benchmarks/m08-report')">
+          <a class="cg-button" :href="page('/benchmarks/m08-report')">
             <i aria-hidden="true">+</i>The M08 report
           </a>
         </div>
@@ -537,7 +540,7 @@ onBeforeUnmount(() => {
               derived fact. Where the evidence is thin, Cartograph refuses. Contributions are
               welcome — real repositories that break the resolver most of all.
             </p>
-            <a class="cg-button cg-button--dark" :href="repo('CONTRIBUTING.md')">
+            <a class="cg-button" :href="repo('CONTRIBUTING.md')">
               <i aria-hidden="true">+</i>Contributing
             </a>
           </div>
@@ -559,7 +562,7 @@ onBeforeUnmount(() => {
               <span class="cg-index">{{ String(i + 1).padStart(2, '0') }}</span>
               <span class="cg-value-title">{{ p.title }}</span>
             </button>
-            <div class="cg-value-body">
+            <div class="cg-value-body" :inert="principle !== i || undefined">
               <div>
                 <p>{{ p.body }}</p>
                 <a :href="p.href">{{ p.link }} →</a>
@@ -571,12 +574,18 @@ onBeforeUnmount(() => {
 
       <!-- Corpus -->
       <section class="cg-corpus">
-        <div class="cg-section cg-corpus-head" data-reveal>
-          <p class="cg-label">Corpus</p>
-          <h2 class="cg-h">Measured on seven pinned<br />production repositories.</h2>
+        <div class="cg-section cg-corpus-head cg-head" data-reveal>
+          <div>
+            <p class="cg-label">Corpus</p>
+            <h2 class="cg-h">Measured on seven pinned<br />production repositories.</h2>
+          </div>
+          <!-- WCAG 2.2.2: anything that moves for more than five seconds can be paused. -->
+          <button class="cg-button cg-toggle" type="button" :aria-pressed="still" @click="still = !still">
+            <i aria-hidden="true">{{ still ? '▶' : '‖' }}</i>Pause motion
+          </button>
         </div>
-        <div class="cg-marquee" aria-label="The seven repositories in the benchmark corpus">
-          <ul>
+        <div class="cg-marquee">
+          <ul aria-label="The seven repositories in the benchmark corpus">
             <li v-for="name in corpus" :key="name">{{ name }}</li>
           </ul>
           <ul aria-hidden="true">
@@ -587,9 +596,9 @@ onBeforeUnmount(() => {
     </main>
 
     <!-- Footer -->
-    <footer class="cg-footer">
+    <footer class="cg-footer" :inert="menuOpen || undefined">
       <div class="cg-dome">
-        <HalftoneField variant="dome" dot="#c9c6b8" cross="#eddfee" />
+        <HalftoneField variant="dome" dot="#c9c6b8" cross="#eddfee" :paused="still" />
       </div>
       <div class="cg-footer-grid">
         <div>
@@ -649,8 +658,10 @@ onBeforeUnmount(() => {
   text-decoration: none;
 }
 
+/* The ring takes the text colour, which every block already sets to 4.5:1
+   against its own background; a fixed pink fails 3:1 on the light ones. */
 .cg :focus-visible {
-  outline: 2px solid var(--cg-pink);
+  outline: 2px solid currentColor;
   outline-offset: 3px;
 }
 
@@ -1093,9 +1104,9 @@ a:hover > .cg-button i {
   text-transform: uppercase;
 }
 
+/* Hidden, not transparent: a transparent button would stay a tab stop. */
 .is-open > .cg-acc-strip {
-  pointer-events: none;
-  opacity: 0;
+  visibility: hidden;
 }
 
 .cg-acc-panel {
@@ -1146,7 +1157,6 @@ a:hover > .cg-button i {
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  opacity: 0.7;
 }
 
 /* Tones shared by every coloured block. */
@@ -1500,7 +1510,7 @@ a:hover > .cg-button i {
   font-family: var(--cg-font-mono);
   font-size: 11px;
   line-height: 1.6;
-  color: rgba(34, 34, 34, 0.6);
+  color: rgba(34, 34, 34, 0.72);
 }
 
 /* ---------- Principles ---------- */
@@ -1660,6 +1670,23 @@ a:hover > .cg-button i {
   }
 }
 
+.cg-marquee:hover ul,
+.cg.is-still .cg-marquee ul,
+.cg.is-still .cg-badge > svg:first-child,
+.cg.is-still .cg-orbit {
+  animation-play-state: paused;
+}
+
+.cg-toggle[aria-pressed='true'] i {
+  background: var(--cg-light-pink);
+  border-color: var(--cg-light-pink);
+  color: var(--cg-green);
+}
+
+.cg-toggle:hover i {
+  transform: none;
+}
+
 /* ---------- Footer ---------- */
 
 .cg-footer {
@@ -1731,7 +1758,8 @@ a:hover > .cg-button i {
     transform 1s var(--cg-ease);
 }
 
-.cg-js [data-reveal].is-in {
+.cg-js [data-reveal].is-in,
+.cg-js [data-reveal]:focus-within {
   opacity: 1;
   transform: none;
 }
@@ -1800,23 +1828,9 @@ a:hover > .cg-button i {
     grid-template-columns: 1fr;
     align-content: start;
   }
-}
 
-@media (max-width: 760px) {
-  .cg-head {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .cg-hero-title {
-    flex-direction: column;
-    justify-content: center;
-  }
-
-  .cg-hero-foot span:nth-child(2) {
-    display: none;
-  }
-
+  /* Side by side, the open panel needs 560px beside four 64px strips; below
+     this width it would be clipped, so the surfaces stack instead. */
   .cg-acc {
     flex-direction: column;
     height: auto;
@@ -1852,6 +1866,22 @@ a:hover > .cg-button i {
     min-width: 0;
     min-height: 360px;
     gap: 3rem;
+  }
+}
+
+@media (max-width: 760px) {
+  .cg-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .cg-hero-title {
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .cg-hero-foot span:nth-child(2) {
+    display: none;
   }
 
   .cg-feature-row {

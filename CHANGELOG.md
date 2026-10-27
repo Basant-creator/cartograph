@@ -7,6 +7,27 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — the documentation site's accessibility
+
+An AgentOS review of the redesigned site (`ui-reviewer`, `docs-reviewer`)
+found it short of WCAG 2.1 AA:
+
+- **Focus rings.** They were a fixed pink that measured 1.0–2.6:1 against the
+  light blocks, and now take each block's text colour.
+- **Invisible tab stops.** Five controls could be tabbed to while invisible:
+  the open accordion strip and the links of collapsed principles. They are now
+  hidden or inert, and the open menu keeps focus to itself.
+- **Text contrast.** Text below 4.5:1 now measures 4.7–7.5:1: a footnote, the
+  accordion tags, the theme's faintest text and the code-language labels.
+- **Motion.** The corpus marquee scrolled with no way to stop it (WCAG 2.2.2).
+  A "Pause motion" control now stops it and the page's other looping
+  animations.
+- **Clipped layout.** Between 761px and 960px the open surfaces panel was
+  clipped by up to 85px. The surfaces now stack below 960px.
+
+The two Geist faces the first screen uses are preloaded again, as Inter was
+before the theme replaced it.
+
 ### Changed — the documentation site's design (M17)
 
 The site has a home page of its own, `docs/.vitepress/theme/Landing.vue`, in
