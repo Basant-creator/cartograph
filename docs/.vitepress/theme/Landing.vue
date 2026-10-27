@@ -135,6 +135,9 @@ const principles = [
   },
 ]
 
+const fieldCaption =
+  'Deterministic analysis first. Evidence second. Inference third. The model last, and never in the graph.'
+
 const corpus = ['Superset', 'PostHog', 'Zulip', 'Onyx', 'Airflow', 'AutoGPT', 'Full-stack FastAPI']
 
 const install = `cargo install --git https://github.com/Rexy-5097/cartograph cartograph-cli
@@ -449,29 +452,57 @@ onBeforeUnmount(() => {
                 <span class="cg-index">{{ String(i + 1).padStart(2, '0') }}</span>
               </div>
               <p>{{ s.body }}</p>
+              <!--
+                Each icon builds itself in order once its card is in (--d is a
+                shape's place in that order), then keeps a small idle motion
+                that says what the step does. The idle shapes are invisible
+                unless motion is on.
+              -->
               <svg v-if="i === 0" class="cg-step-icon" viewBox="0 0 120 120" aria-hidden="true">
-                <rect x="52" y="14" width="16" height="12" pathLength="1" class="cg-ln" />
-                <path d="M60 26v16M24 42h72M24 42v14M60 42v14M96 42v14" pathLength="1" class="cg-ln" />
-                <rect x="16" y="56" width="16" height="12" pathLength="1" class="cg-ln" />
-                <rect x="52" y="56" width="16" height="12" pathLength="1" class="cg-ln" />
-                <rect x="88" y="56" width="16" height="12" pathLength="1" class="cg-ln" />
-                <path d="M60 68v14M44 82h32M44 82v12M76 82v12" pathLength="1" class="cg-ln" />
-                <rect x="36" y="94" width="16" height="12" pathLength="1" class="cg-ln" />
-                <rect x="68" y="94" width="16" height="12" pathLength="1" class="cg-ln" />
+                <!-- Parse: the tree assembles from its root; then tokens flow down it. -->
+                <rect class="cg-ln" pathLength="1" x="52" y="14" width="16" height="12" style="--d: 0s" />
+                <path class="cg-ln" pathLength="1" d="M60 26v16" style="--d: 0.3s" />
+                <path class="cg-ln" pathLength="1" d="M60 42H24" style="--d: 0.5s" />
+                <path class="cg-ln" pathLength="1" d="M60 42H96" style="--d: 0.5s" />
+                <path class="cg-ln" pathLength="1" d="M24 42v14" style="--d: 0.75s" />
+                <path class="cg-ln" pathLength="1" d="M60 42v14" style="--d: 0.75s" />
+                <path class="cg-ln" pathLength="1" d="M96 42v14" style="--d: 0.75s" />
+                <rect class="cg-pop" x="16" y="56" width="16" height="12" style="--d: 0.95s" />
+                <rect class="cg-pop" x="52" y="56" width="16" height="12" style="--d: 1.05s" />
+                <rect class="cg-pop" x="88" y="56" width="16" height="12" style="--d: 1.15s" />
+                <path class="cg-ln" pathLength="1" d="M60 68v14" style="--d: 1.3s" />
+                <path class="cg-ln" pathLength="1" d="M60 82H44" style="--d: 1.5s" />
+                <path class="cg-ln" pathLength="1" d="M60 82H76" style="--d: 1.5s" />
+                <path class="cg-ln" pathLength="1" d="M44 82v12" style="--d: 1.7s" />
+                <path class="cg-ln" pathLength="1" d="M76 82v12" style="--d: 1.7s" />
+                <rect class="cg-pop" x="36" y="94" width="16" height="12" style="--d: 1.85s" />
+                <rect class="cg-pop" x="68" y="94" width="16" height="12" style="--d: 1.95s" />
+                <circle class="cg-tok cg-tok--l" cx="60" cy="26" r="2.2" />
+                <circle class="cg-tok cg-tok--ml" cx="60" cy="26" r="2.2" />
+                <circle class="cg-tok cg-tok--r" cx="60" cy="26" r="2.2" />
+                <circle class="cg-tok cg-tok--mr" cx="60" cy="26" r="2.2" />
               </svg>
               <svg v-else-if="i === 1" class="cg-step-icon" viewBox="0 0 120 120" aria-hidden="true">
-                <path d="M60 10v100" stroke-dasharray="3 5" />
-                <circle cx="26" cy="60" r="14" pathLength="1" class="cg-ln" />
-                <circle cx="94" cy="60" r="14" pathLength="1" class="cg-ln" />
-                <path d="M38 52c10-22 34-22 44 0" pathLength="1" class="cg-ln" />
-                <path d="M76 46l6 6 3-8" pathLength="1" class="cg-ln" />
-                <path d="M20 60h12M88 54v12M82 60h12" pathLength="1" class="cg-ln" />
+                <!-- Resolve: a boundary rises, the call crosses it; then a match lands. -->
+                <path class="cg-grow-y" d="M60 10v100" stroke-dasharray="3 5" style="--d: 0s" />
+                <circle class="cg-ln cg-src" pathLength="1" cx="26" cy="60" r="14" style="--d: 0.35s" />
+                <path class="cg-ln" pathLength="1" d="M20 60h12" style="--d: 0.75s" />
+                <path class="cg-ln" pathLength="1" d="M38 52A24 24 0 0 1 82 52" style="--d: 0.95s" />
+                <path class="cg-ln" pathLength="1" d="M82.7 46 82 52 77.2 48.4" style="--d: 1.45s" />
+                <circle class="cg-ln cg-dst" pathLength="1" cx="94" cy="60" r="14" style="--d: 1.55s" />
+                <path class="cg-ln" pathLength="1" d="M88 60h12M94 54v12" style="--d: 1.9s" />
+                <g class="cg-hop"><circle cx="36" cy="61.6" r="2.4" /></g>
               </svg>
               <svg v-else class="cg-step-icon" viewBox="0 0 120 120" aria-hidden="true">
-                <path d="M14 30V14h16M90 14h16v16M106 90v16H90M30 106H14V90" pathLength="1" class="cg-ln" />
-                <rect x="32" y="32" width="56" height="56" pathLength="1" class="cg-ln" />
-                <path d="M32 32l56 56" stroke-dasharray="3 5" />
-                <path d="M46 62l10 10 20-24" pathLength="1" class="cg-ln" />
+                <!-- Prove: the frame closes in, the check is drawn; then it keeps scanning. -->
+                <path class="cg-corner" d="M14 30V14h16" style="--cx: -8px; --cy: -8px; --d: 0s" />
+                <path class="cg-corner" d="M90 14h16v16" style="--cx: 8px; --cy: -8px; --d: 0.08s" />
+                <path class="cg-corner" d="M106 90v16H90" style="--cx: 8px; --cy: 8px; --d: 0.16s" />
+                <path class="cg-corner" d="M30 106H14V90" style="--cx: -8px; --cy: 8px; --d: 0.24s" />
+                <rect class="cg-ln" pathLength="1" x="32" y="32" width="56" height="56" style="--d: 0.5s" />
+                <path class="cg-grow-0" d="M32 32l56 56" stroke-dasharray="3 5" style="--d: 1.05s" />
+                <path class="cg-ln cg-check" pathLength="1" d="M46 62l10 10 20-24" style="--d: 1.35s" />
+                <line class="cg-scan" x1="34" y1="34" x2="86" y2="34" />
               </svg>
             </a>
           </div>
@@ -479,10 +510,21 @@ onBeforeUnmount(() => {
 
         <section class="cg-field">
           <HalftoneField variant="field" dot="#aaa58c" cross="#222222" :paused="still" />
-          <p class="cg-field-caption cg-label" data-reveal>
-            Deterministic analysis first. Evidence second. Inference third. The model last, and
-            never in the graph.
-          </p>
+          <!-- The caption's box draws itself clockwise, then the line is typed in. -->
+          <div class="cg-field-caption" data-reveal>
+            <p class="cg-caption">
+              <span class="cg-sr">{{ fieldCaption }}</span>
+              <span class="cg-caption-text" aria-hidden="true"><span
+                  v-for="(ch, c) in fieldCaption"
+                  :key="c"
+                  class="cg-ch"
+                  :style="{ '--c': c }"
+                >{{ ch }}</span><span class="cg-caption-caret" :style="{ '--c': fieldCaption.length }" /></span>
+              <i class="cg-edge cg-edge--t" /><i class="cg-edge cg-edge--r" /><i class="cg-edge cg-edge--b" /><i
+                class="cg-edge cg-edge--l"
+              />
+            </p>
+          </div>
         </section>
       </div>
 
@@ -1444,6 +1486,10 @@ a:hover > .cg-button i {
 }
 
 .cg-step-icon {
+  /* When this icon starts building (after its card is in), and when its idle
+     motion starts (after it has built). */
+  --base: calc(0.45s + var(--i, 0) * 0.18s);
+  --idle: calc(var(--base) + 2.6s);
   align-self: flex-end;
   width: clamp(96px, 7vw + 40px, 132px);
   margin-top: auto;
@@ -1452,6 +1498,44 @@ a:hover > .cg-button i {
   stroke: var(--cg-black);
   stroke-width: 1.1;
   transition: transform 0.6s var(--cg-ease);
+}
+
+.cg-step-icon .cg-pop,
+.cg-step-icon .cg-grow-y,
+.cg-step-icon .cg-grow-0,
+.cg-step-icon .cg-check,
+.cg-step-icon .cg-src,
+.cg-step-icon .cg-dst,
+.cg-step-icon .cg-tok {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.cg-step-icon .cg-grow-0 {
+  transform-origin: 0 0;
+}
+
+/* The hop circles the arc's centre. */
+.cg-step-icon .cg-hop {
+  transform-box: view-box;
+  transform-origin: 60px 61.6px;
+}
+
+.cg-step-icon .cg-tok,
+.cg-step-icon .cg-hop circle {
+  fill: var(--cg-black);
+  stroke: none;
+}
+
+.cg-step-icon .cg-scan {
+  stroke: var(--cg-pink-deep);
+}
+
+/* Idle shapes exist only while motion is on. */
+.cg-step-icon .cg-tok,
+.cg-step-icon .cg-hop,
+.cg-step-icon .cg-scan {
+  opacity: 0;
 }
 
 .cg-step:hover .cg-step-icon {
@@ -1467,11 +1551,66 @@ a:hover > .cg-button i {
 
 .cg-field-caption {
   position: absolute;
-  inset: auto var(--cg-gutter) 1.5rem;
-  margin: 0;
-  text-align: center;
-  color: rgba(34, 34, 34, 0.72);
+  inset: auto var(--cg-gutter) 1.75rem;
+  display: flex;
+  justify-content: center;
   pointer-events: none;
+}
+
+/* A solid box, so the dots never run through the words. */
+.cg-caption {
+  position: relative;
+  max-width: 100%;
+  margin: 0;
+  padding: 0.85rem 1.25rem;
+  font-family: var(--cg-font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.6;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--cg-black);
+  background-color: var(--cg-manilla);
+}
+
+.cg-caption-caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1.05em;
+  margin-left: 0.2em;
+  vertical-align: text-bottom;
+  background: var(--cg-pink-deep);
+  opacity: 0;
+}
+
+.cg-edge {
+  position: absolute;
+  background: var(--cg-black);
+}
+
+.cg-edge--t {
+  inset: 0 0 auto;
+  height: 1px;
+  transform-origin: 0 50%;
+}
+
+.cg-edge--r {
+  inset: 0 0 0 auto;
+  width: 1px;
+  transform-origin: 50% 0;
+}
+
+.cg-edge--b {
+  inset: auto 0 0;
+  height: 1px;
+  transform-origin: 100% 50%;
+}
+
+.cg-edge--l {
+  inset: 0 auto 0 0;
+  width: 1px;
+  transform-origin: 50% 100%;
 }
 
 /* ---------- Proof (white) ---------- */
@@ -2234,16 +2373,76 @@ a:hover > .cg-button i {
   transform: none;
 }
 
-/* A keyframe animation, not a transition: in testing, a transition on these
-   shapes' stroke-dashoffset never started in Chromium and the lines stayed
-   undrawn; the animation runs. Each drawn shape carries pathLength="1". */
+/* The icons build themselves shape by shape, in the order --d gives, and then
+   keep an idle motion. Keyframe animations, not transitions: in testing, a
+   transition on these shapes' stroke-dashoffset never started in Chromium.
+   Each drawn shape carries pathLength="1". */
 .cg-motion .cg-ln {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
 }
 
 .cg-motion .cg-steps.is-in .cg-ln {
-  animation: cg-draw 1.8s var(--cg-ease) calc(0.4s + var(--i) * 0.18s) both;
+  animation: cg-draw 0.9s var(--cg-ease) calc(var(--base) + var(--d, 0s)) both;
+}
+
+.cg-motion .cg-steps.is-in .cg-pop {
+  animation: cg-pop 0.7s var(--cg-ease) calc(var(--base) + var(--d, 0s)) both;
+}
+
+.cg-motion .cg-steps.is-in .cg-grow-y {
+  animation: cg-grow-y 0.9s var(--cg-ease) calc(var(--base) + var(--d, 0s)) both;
+}
+
+.cg-motion .cg-steps.is-in .cg-grow-0 {
+  animation: cg-grow 0.8s var(--cg-ease) calc(var(--base) + var(--d, 0s)) both;
+}
+
+.cg-motion .cg-steps.is-in .cg-corner {
+  animation:
+    cg-corner-in 0.9s var(--cg-ease) calc(var(--base) + var(--d, 0s)) both,
+    cg-breathe 3.2s ease-in-out var(--idle) infinite;
+}
+
+/* These draw like any line, then do one more thing. */
+.cg-motion .cg-steps.is-in .cg-check {
+  animation:
+    cg-draw 0.7s var(--cg-ease) calc(var(--base) + var(--d)) both,
+    cg-tick 0.6s var(--cg-ease) calc(var(--base) + var(--d) + 0.55s) both;
+}
+
+.cg-motion .cg-steps.is-in .cg-src {
+  animation:
+    cg-draw 0.9s var(--cg-ease) calc(var(--base) + var(--d)) both,
+    cg-emit 3.2s ease-out var(--idle) infinite;
+}
+
+.cg-motion .cg-steps.is-in .cg-dst {
+  animation:
+    cg-draw 0.9s var(--cg-ease) calc(var(--base) + var(--d)) both,
+    cg-land 3.2s ease-out var(--idle) infinite;
+}
+
+.cg-motion .cg-steps.is-in .cg-hop {
+  animation: cg-hop 3.2s ease-in-out var(--idle) infinite;
+}
+
+.cg-motion .cg-steps.is-in .cg-scan {
+  animation: cg-scan 3.2s ease-in-out var(--idle) infinite;
+}
+
+/* Four tokens a quarter-cycle apart, so one is always on its way down. */
+.cg-motion .cg-steps.is-in .cg-tok--l {
+  animation: cg-tok-l 4.8s ease-in-out var(--idle) infinite;
+}
+.cg-motion .cg-steps.is-in .cg-tok--ml {
+  animation: cg-tok-ml 4.8s ease-in-out calc(var(--idle) + 1.2s) infinite;
+}
+.cg-motion .cg-steps.is-in .cg-tok--r {
+  animation: cg-tok-r 4.8s ease-in-out calc(var(--idle) + 2.4s) infinite;
+}
+.cg-motion .cg-steps.is-in .cg-tok--mr {
+  animation: cg-tok-mr 4.8s ease-in-out calc(var(--idle) + 3.6s) infinite;
 }
 
 @keyframes cg-draw {
@@ -2252,6 +2451,271 @@ a:hover > .cg-button i {
   }
   to {
     stroke-dashoffset: 0;
+  }
+}
+
+@keyframes cg-pop {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  65% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes cg-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+@keyframes cg-grow {
+  from {
+    transform: scale(0);
+  }
+}
+
+@keyframes cg-corner-in {
+  from {
+    transform: translate(var(--cx), var(--cy));
+    opacity: 0;
+  }
+}
+
+@keyframes cg-breathe {
+  50% {
+    transform: translate(calc(var(--cx) * 0.3), calc(var(--cy) * 0.3));
+  }
+}
+
+@keyframes cg-tick {
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+@keyframes cg-emit {
+  0% {
+    transform: scale(1.1);
+  }
+  18%,
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes cg-land {
+  0%,
+  76% {
+    transform: scale(1);
+  }
+  86% {
+    transform: scale(1.14);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* From the arc's start to its end: (38, 52) to (82, 52) about (60, 61.6). */
+@keyframes cg-hop {
+  0% {
+    transform: rotate(23.6deg);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  78% {
+    transform: rotate(156.4deg);
+    opacity: 1;
+  }
+  90%,
+  100% {
+    transform: rotate(156.4deg);
+    opacity: 0;
+  }
+}
+
+@keyframes cg-scan {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  12%,
+  88% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(52px);
+    opacity: 0;
+  }
+}
+
+/* Root (60, 26) → trunk → branch → child box, which it lights as it lands. */
+@keyframes cg-tok-l {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  30% {
+    transform: translate(0, 16px);
+  }
+  58% {
+    transform: translate(-36px, 16px);
+  }
+  78% {
+    transform: translate(-36px, 30px) scale(1);
+    opacity: 1;
+  }
+  92%,
+  100% {
+    transform: translate(-36px, 30px) scale(2.6);
+    opacity: 0;
+  }
+}
+
+@keyframes cg-tok-r {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  30% {
+    transform: translate(0, 16px);
+  }
+  58% {
+    transform: translate(36px, 16px);
+  }
+  78% {
+    transform: translate(36px, 30px) scale(1);
+    opacity: 1;
+  }
+  92%,
+  100% {
+    transform: translate(36px, 30px) scale(2.6);
+    opacity: 0;
+  }
+}
+
+/* Through the middle child to a leaf. */
+@keyframes cg-tok-ml {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0;
+  }
+  6% {
+    opacity: 1;
+  }
+  45% {
+    transform: translate(0, 56px);
+  }
+  62% {
+    transform: translate(-16px, 56px);
+  }
+  78% {
+    transform: translate(-16px, 68px) scale(1);
+    opacity: 1;
+  }
+  92%,
+  100% {
+    transform: translate(-16px, 68px) scale(2.6);
+    opacity: 0;
+  }
+}
+
+@keyframes cg-tok-mr {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0;
+  }
+  6% {
+    opacity: 1;
+  }
+  45% {
+    transform: translate(0, 56px);
+  }
+  62% {
+    transform: translate(16px, 56px);
+  }
+  78% {
+    transform: translate(16px, 68px) scale(1);
+    opacity: 1;
+  }
+  92%,
+  100% {
+    transform: translate(16px, 68px) scale(2.6);
+    opacity: 0;
+  }
+}
+
+/* The caption: four edges draw clockwise, the box fills, the line types in. */
+.cg-motion .cg-edge--t,
+.cg-motion .cg-edge--b {
+  transform: scaleX(0);
+}
+
+.cg-motion .cg-edge--r,
+.cg-motion .cg-edge--l {
+  transform: scaleY(0);
+}
+
+.cg-motion .cg-field-caption.is-in .cg-edge {
+  transform: none;
+  transition: transform 0.45s var(--cg-ease);
+}
+
+.cg-motion .cg-field-caption.is-in .cg-edge--t {
+  transition-delay: 0.25s;
+}
+.cg-motion .cg-field-caption.is-in .cg-edge--r {
+  transition-delay: 0.55s;
+}
+.cg-motion .cg-field-caption.is-in .cg-edge--b {
+  transition-delay: 0.85s;
+}
+.cg-motion .cg-field-caption.is-in .cg-edge--l {
+  transition-delay: 1.15s;
+}
+
+.cg-motion .cg-caption {
+  background-color: transparent;
+}
+
+.cg-motion .cg-field-caption.is-in .cg-caption {
+  background-color: var(--cg-manilla);
+  transition: background-color 0.5s ease 1.1s;
+}
+
+.cg-motion .cg-ch {
+  opacity: 0;
+}
+
+/* jump-start, not end: the delays accumulate floating-point error, so later
+   characters finish at a progress just under 1, where steps(1, end) is still
+   on its first step and would leave them invisible. */
+.cg-motion .cg-field-caption.is-in .cg-ch {
+  animation: cg-type 0.01s steps(1, jump-start) calc(1.45s + var(--c) * 17ms) forwards;
+}
+
+/* Three blinks once typed, then it rests. */
+.cg-motion .cg-field-caption.is-in .cg-caption-caret {
+  animation: cg-blink 1s steps(1, end) calc(1.45s + var(--c) * 17ms) 3;
+}
+
+@keyframes cg-type {
+  to {
+    opacity: 1;
   }
 }
 
