@@ -7,20 +7,27 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Changed — the hero's background is Cartograph's own mark
+### Changed — the hero is a globe of code, its orbit carrying the benchmarks
 
-The drifting constellation behind the headline had dozens of small nodes and
-lines, and read as noise. It is replaced by the logo's three nodes and two
-edges, drawn monumentally across the hero as solid discs and heavy strokes, a
-step above the ground. The headline keeps 4.9:1 or better over them.
+The drifting constellation behind the headline read as noise. It is replaced
+by a globe made of code glyphs at the centre of the hero (`GlobeField.vue`):
 
-The mark builds once: the edges draw out of the left node and the nodes land.
-After that it is nearly still. One evidence packet crosses an edge at a time,
-a faint orbit turns, the mark leans slightly toward the pointer, and it pushes
-in as the hero scrolls away. In a portrait hero it is fitted rather than
-cropped, so all three nodes stay in view on a phone. With motion paused or
-reduced it is simply the mark. It is SVG and CSS (`HeroMark.vue`) instead of a
-canvas redrawn every frame, and `GraphField.vue` is removed.
+- **The globe.** It sits in a faint wireframe (rim, equator, two latitudes) so
+  it reads as a sphere. Its characters flicker, and bright bands rain down its
+  face. It spins faster while the page scrolls, then eases back.
+- **Edges to the taglines.** Edges run from its rim to each tagline (the two
+  headline halves, now in opposite corners, and the three lines at the foot).
+  A packet travels each edge, so the globe is the hub of a small graph.
+- **The orbit.** A tilted orbit carries the benchmark figures with their scope
+  ("0.907 HttpCall recall · Airflow"). These are decorative copies; the
+  Measured section states them with their caveats. Labels pass behind the
+  globe, dimmed, and come round the front. A phone shows four of them, kept
+  inside the screen.
+
+Glyphs dim behind the headline, so its contrast holds. The canvas draws only
+while the hero is on screen. Glyphs are grouped by font and colour, so a frame
+takes about 2 ms. Under paused or reduced motion it is one still frame.
+`GraphField.vue` is removed.
 
 ### Changed — the governing principle, large, in the middle of the field; "Try it" fills the footer dome
 

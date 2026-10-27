@@ -12,7 +12,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { withBase } from 'vitepress'
 import HalftoneField from './HalftoneField.vue'
-import HeroMark from './HeroMark.vue'
+import GlobeField from './GlobeField.vue'
 import SplitWords from './SplitWords.vue'
 import { counters, cursor, magnetic, marqueeVelocity, reveals, scrollScene } from './motion'
 
@@ -344,23 +344,23 @@ onBeforeUnmount(() => {
       <!-- The hero stays pinned while the statement slides up over it. -->
       <div class="cg-stage" data-scroll="top">
         <section class="cg-hero">
-          <HeroMark :paused="still" />
+          <!-- The globe is the hub; edges run from it to each data-globe-edge. -->
+          <GlobeField :paused="still" />
           <h1 class="cg-hero-title">
-            <span class="cg-hero-left">
+            <span class="cg-hero-left" data-globe-edge>
               <span class="cg-line"><span style="--d: 0.05s">Compute the</span></span>
               <span class="cg-line"><span style="--d: 0.15s">architecture</span></span>
             </span>
-            <span class="cg-hero-right">
+            <span class="cg-hero-right" data-globe-edge>
               <span class="cg-line"><span style="--d: 0.3s">Prove the</span></span>
               <span class="cg-line"><span style="--d: 0.4s">relationships</span></span>
             </span>
           </h1>
           <div class="cg-hero-foot">
-            <span>Local-first architectural intelligence</span>
-            <span>TypeScript · TSX · Python</span>
-            <span>v0.1.0 · M17 in progress</span>
+            <span data-globe-edge>Local-first architectural intelligence</span>
+            <span data-globe-edge>TypeScript · TSX · Python</span>
+            <span data-globe-edge>v0.1.0 · M17 in progress</span>
           </div>
-          <span class="cg-scroll-cue" aria-hidden="true"><i /></span>
         </section>
 
         <section class="cg-intro">
@@ -1141,15 +1141,11 @@ a:hover > .cg-button i {
   overflow: hidden;
 }
 
+/* The two halves sit in opposite corners, with the globe between them. */
 .cg-hero-title {
-  position: relative;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 2rem 3rem;
   margin: 0;
   color: var(--cg-pink);
-  font-size: clamp(2.4rem, 0.8rem + 4.5vw, 5.4rem);
+  font-size: clamp(2.2rem, 0.8rem + 4.1vw, 5rem);
   font-weight: 500;
   line-height: 1;
   letter-spacing: -0.01em;
@@ -1158,11 +1154,20 @@ a:hover > .cg-button i {
 
 .cg-hero-left,
 .cg-hero-right {
+  position: absolute;
+  z-index: 1;
   display: flex;
   flex-direction: column;
 }
 
+.cg-hero-left {
+  top: clamp(104px, 15vh, 170px);
+  left: var(--cg-gutter);
+}
+
 .cg-hero-right {
+  right: var(--cg-gutter);
+  bottom: clamp(96px, 15vh, 160px);
   align-items: flex-end;
   text-align: right;
 }
@@ -1196,35 +1201,14 @@ a:hover > .cg-button i {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  /* 0.72, not lower: this line can sit over the mark's discs (5.6:1 there). */
   color: rgba(237, 223, 238, 0.72);
   animation: cg-fade 1.2s 0.7s var(--cg-ease) backwards;
 }
 
-.cg-scroll-cue {
-  position: absolute;
-  left: 50%;
-  bottom: calc(var(--cg-gutter) + 2.25rem);
-  width: 1px;
-  height: 48px;
-  overflow: hidden;
-  background: rgba(237, 223, 238, 0.18);
-}
-
-.cg-scroll-cue i {
-  position: absolute;
-  inset: 0;
-  background: var(--cg-pink);
-  animation: cg-cue 2.2s var(--cg-ease) infinite;
-}
-
-@keyframes cg-cue {
-  from {
-    transform: translateY(-100%);
-  }
-  to {
-    transform: translateY(100%);
-  }
+/* The globe's edges end at these; lift them over its canvas. */
+.cg-hero-foot span {
+  position: relative;
+  z-index: 1;
 }
 
 @keyframes cg-fade {
@@ -2369,13 +2353,12 @@ a:hover > .cg-button i {
   opacity: max(0, calc(1 - var(--p, 0) * 1.5));
 }
 
-.cg-motion .cg-hero-foot,
-.cg-motion .cg-scroll-cue {
+.cg-motion .cg-hero-foot {
   opacity: max(0, calc(1 - var(--p, 0) * 4));
 }
 
-/* The mark pushes in as it fades, so the hero leaves with some weight. */
-.cg-motion .cg-hero :deep(.hm) {
+/* The globe pushes in as it fades (and spins faster while it does). */
+.cg-motion .cg-hero :deep(.cg-globe) {
   opacity: max(0, calc(1 - var(--p, 0) * 1.2));
   transform: scale(calc(1 + var(--p, 0) * 0.3));
 }
@@ -2829,8 +2812,7 @@ a:hover > .cg-button i {
 .cg.is-still .cg-marquee ul,
 .cg.is-still .cg-badge > svg:first-child,
 .cg.is-still .cg-orbit-rings,
-.cg.is-still .cg-orbit-sat,
-.cg.is-still .cg-scroll-cue i {
+.cg.is-still .cg-orbit-sat {
   animation-play-state: paused;
 }
 
@@ -2950,13 +2932,7 @@ a:hover > .cg-button i {
     align-items: flex-start;
   }
 
-  .cg-hero-title {
-    flex-direction: column;
-    justify-content: center;
-  }
-
-  .cg-hero-foot span:nth-child(2),
-  .cg-scroll-cue {
+  .cg-hero-foot span:nth-child(2) {
     display: none;
   }
 
