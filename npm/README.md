@@ -6,8 +6,12 @@ This package is a **launcher**. The engine is a native binary written in Rust;
 no analysis happens in JavaScript, and none ever will — two implementations of
 the resolver would be two answers to the same question.
 
+**Not published.** This launcher has not been published to the npm registry.
+The `cartograph-cli` and `cartograph` names there belong to unrelated packages,
+so do not install either expecting this tool. Build from source instead:
+
 ```bash
-npx cartograph-cli .
+cargo install --git https://github.com/Rexy-5097/cartograph cartograph-cli
 ```
 
 ## How the binary is found
