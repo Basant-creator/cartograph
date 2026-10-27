@@ -1,0 +1,253 @@
+/*
+ * Cartograph site theme.
+ *
+ * One palette serves the landing page and the documentation: near-black,
+ * manilla paper, pink as the single accent, with deep green and khaki as
+ * secondary fields. Headings are set in Geist, upper-case; labels, code and
+ * navigation in Geist Mono.
+ */
+
+:root {
+  --cg-black: #222222;
+  --cg-ink: #1a1a1a;
+  --cg-grey: #3e3e3e;
+  --cg-pink: #cd8dbd;
+  --cg-pink-deep: #8a4a79;
+  --cg-light-pink: #eddfee;
+  --cg-manilla: #ede8da;
+  --cg-manilla-deep: #e3dccb;
+  --cg-green: #1f2d1d;
+  --cg-khaki: #b7b39c;
+  --cg-white: #ffffff;
+
+  --cg-font: 'Geist Variable', 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --cg-font-mono: 'Geist Mono Variable', 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+
+  --cg-gutter: clamp(1rem, 0.4rem + 2.6vw, 3rem);
+  --cg-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* VitePress, light: manilla paper and black ink. */
+  --vp-font-family-base: var(--cg-font);
+  --vp-font-family-mono: var(--cg-font-mono);
+
+  --vp-c-bg: var(--cg-manilla);
+  --vp-c-bg-alt: var(--cg-manilla-deep);
+  --vp-c-bg-elv: #f4f0e6;
+  --vp-c-bg-soft: var(--cg-manilla-deep);
+
+  --vp-c-text-1: var(--cg-black);
+  --vp-c-text-2: rgba(34, 34, 34, 0.74);
+  --vp-c-text-3: rgba(34, 34, 34, 0.52);
+
+  --vp-c-divider: rgba(34, 34, 34, 0.14);
+  --vp-c-border: rgba(34, 34, 34, 0.24);
+  --vp-c-gutter: rgba(34, 34, 34, 0.1);
+
+  --vp-c-brand-1: var(--cg-pink-deep);
+  --vp-c-brand-2: #9c5a8b;
+  --vp-c-brand-3: var(--cg-pink);
+  --vp-c-brand-soft: rgba(205, 141, 189, 0.24);
+
+  --vp-c-default-soft: rgba(34, 34, 34, 0.07);
+
+  --vp-button-brand-bg: var(--cg-black);
+  --vp-button-brand-text: var(--cg-light-pink);
+  --vp-button-brand-hover-bg: var(--cg-grey);
+  --vp-button-brand-hover-text: var(--cg-light-pink);
+  --vp-button-brand-active-bg: var(--cg-grey);
+
+  /* Light code blocks stay light: the light syntax theme draws dark tokens. */
+  --vp-code-block-bg: var(--cg-manilla-deep);
+  --vp-code-tab-bg: var(--cg-manilla-deep);
+  --vp-code-lang-color: rgba(34, 34, 34, 0.5);
+  --vp-code-line-highlight-color: rgba(205, 141, 189, 0.22);
+  --vp-code-color: var(--cg-pink-deep);
+  --vp-code-bg: rgba(34, 34, 34, 0.07);
+
+  --vp-nav-bg-color: var(--cg-manilla);
+  --vp-sidebar-bg-color: var(--cg-manilla-deep);
+  --vp-local-search-bg: var(--cg-manilla);
+  --vp-local-search-result-bg: #f4f0e6;
+  --vp-local-search-highlight-bg: var(--cg-pink);
+
+  --vp-custom-block-tip-bg: var(--vp-c-brand-soft);
+  --vp-custom-block-tip-border: transparent;
+}
+
+/* VitePress, dark: the landing page's black field and pink type. */
+.dark {
+  --vp-c-bg: var(--cg-black);
+  --vp-c-bg-alt: var(--cg-ink);
+  --vp-c-bg-elv: #2a2a2a;
+  --vp-c-bg-soft: #2a2a2a;
+
+  --vp-c-text-1: var(--cg-light-pink);
+  --vp-c-text-2: rgba(237, 223, 238, 0.72);
+  --vp-c-text-3: rgba(237, 223, 238, 0.48);
+
+  --vp-c-divider: rgba(237, 223, 238, 0.12);
+  --vp-c-border: rgba(237, 223, 238, 0.22);
+  --vp-c-gutter: #111111;
+
+  --vp-c-brand-1: var(--cg-pink);
+  --vp-c-brand-2: #dcaad0;
+  --vp-c-brand-3: var(--cg-pink-deep);
+  --vp-c-brand-soft: rgba(205, 141, 189, 0.16);
+
+  --vp-c-default-soft: rgba(237, 223, 238, 0.07);
+
+  --vp-button-brand-bg: var(--cg-pink);
+  --vp-button-brand-text: var(--cg-black);
+  --vp-button-brand-hover-bg: #dcaad0;
+  --vp-button-brand-hover-text: var(--cg-black);
+  --vp-button-brand-active-bg: #dcaad0;
+
+  --vp-code-block-bg: var(--cg-ink);
+  --vp-code-tab-bg: var(--cg-ink);
+  --vp-code-lang-color: rgba(237, 223, 238, 0.5);
+  --vp-code-line-highlight-color: rgba(205, 141, 189, 0.14);
+  --vp-code-color: var(--cg-pink);
+  --vp-code-bg: rgba(237, 223, 238, 0.08);
+
+  --vp-nav-bg-color: var(--cg-black);
+  --vp-sidebar-bg-color: var(--cg-ink);
+  --vp-local-search-bg: var(--cg-black);
+  --vp-local-search-result-bg: #2a2a2a;
+}
+
+::selection {
+  background: var(--cg-pink);
+  color: var(--cg-black);
+}
+
+/* ---------- Navigation ---------- */
+
+.VPNavBar .title {
+  font-family: var(--cg-font);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--vp-c-brand-1);
+}
+
+.VPNavBarMenuLink,
+.VPNavBarMenuGroup .text,
+.VPNavScreenMenuLink,
+.VPNavScreenMenuGroup .button-text {
+  font-family: var(--cg-font-mono);
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.VPNavBar.has-sidebar .content-body,
+.VPNavBar:not(.home) .content-body {
+  border-bottom: 1px solid var(--vp-c-divider);
+}
+
+/* ---------- Sidebar ---------- */
+
+.VPSidebarItem.level-0 > .item > .text,
+.VPSidebarItem.level-0 > .item > h2.text {
+  font-family: var(--cg-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vp-c-text-3);
+}
+
+.VPSidebarItem .link .text {
+  font-size: 14px;
+}
+
+.VPSidebarItem.is-active > .item .link > .text {
+  color: var(--vp-c-brand-1);
+  font-weight: 600;
+}
+
+/* ---------- Document typography ---------- */
+
+.vp-doc h1,
+.vp-doc h2 {
+  font-family: var(--cg-font);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+}
+
+.vp-doc h1 {
+  font-size: clamp(2rem, 1.6rem + 1.6vw, 3rem);
+  line-height: 1.05;
+}
+
+.vp-doc h2 {
+  font-size: clamp(1.35rem, 1.2rem + 0.6vw, 1.75rem);
+  line-height: 1.15;
+  border-top-color: var(--vp-c-divider);
+}
+
+.vp-doc h3,
+.vp-doc h4 {
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.vp-doc a {
+  text-underline-offset: 3px;
+}
+
+.vp-doc table {
+  font-size: 14px;
+}
+
+.vp-doc th {
+  font-family: var(--cg-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vp-doc tr,
+.vp-doc th,
+.vp-doc td {
+  border-color: var(--vp-c-divider);
+}
+
+.vp-doc tr:nth-child(2n) {
+  background-color: var(--vp-c-default-soft);
+}
+
+.vp-doc blockquote {
+  border-left: 2px solid var(--vp-c-brand-3);
+}
+
+.vp-doc div[class*='language-'] {
+  border-radius: 0.3em;
+}
+
+.VPDocAside .outline-title,
+.VPDocFooter .prev-next .desc,
+.VPDocFooter .edit-info,
+.VPFooter .message {
+  font-family: var(--cg-font-mono);
+  font-size: 11px !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ---------- The landing page owns its whole viewport ---------- */
+
+.cg-landing .VPContent {
+  padding-top: 0 !important;
+}
+
+.cg-landing .VPPage {
+  padding: 0;
+}
+
+.cg-landing .VPLocalNav {
+  display: none;
+}

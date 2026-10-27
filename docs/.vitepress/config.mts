@@ -73,7 +73,11 @@ function rewriteLink(href: string, source: string): string {
 
 function repositoryLinks(md: any) {
   md.core.ruler.push('cartograph_repository_links', (state: any) => {
-    const raw: string = state.env.realPath ?? state.env.path
+    // VitePress also renders text that has no source file through this
+    // pipeline — a frontmatter `title`, for one. With no file there is no
+    // relative link to resolve, so there is nothing to rewrite.
+    const raw: string | undefined = state.env.realPath ?? state.env.path
+    if (!raw) return
     const source = path.isAbsolute(raw) ? raw : path.resolve(DOCS, raw)
     for (const block of state.tokens) {
       if (block.type !== 'inline' || !block.children) continue
@@ -118,6 +122,13 @@ export default defineConfig({
     'Compute the architecture. Prove the relationships. A local-first, cross-language architecture graph with the evidence behind every edge.',
   base: '/cartograph/',
   lang: 'en-GB',
+  // The site's palette is set in .vitepress/theme/style.css; dark is its
+  // native field, and the light appearance is manilla paper.
+  appearance: 'dark',
+  head: [
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/cartograph/favicon.svg' }],
+    ['meta', { name: 'theme-color', content: '#222222' }],
+  ],
 
   // docs/README.md is the index GitHub shows for this directory; on the site
   // the home page and the sidebar take its place, and links to it resolve to
