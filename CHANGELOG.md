@@ -21,6 +21,17 @@ Each label is now drawn once, pill and text together, into a small canvas of
 its own. Every frame places that image whole, on a whole device pixel, so it is
 copied rather than resampled and the text cannot move within its pill.
 
+### Fixed — the docs no longer tell readers to run `npx cartograph-cli`
+
+The v0.1.0 release notes and `npm/README.md` told readers to run
+`npx cartograph-cli .`. This project has never published its npm launcher, and
+the `cartograph-cli` name on the npm registry belongs to an unrelated package
+(as does `cartograph`), so that command ran someone else's code. Both pages now
+say the launcher is not published and give the build-from-source command,
+`cargo install --git https://github.com/Rexy-5097/cartograph cartograph-cli`.
+What the launcher does is still described. The roadmap's npm row no longer
+names `npx cartograph`: the package name is undecided.
+
 ### Changed — the hero is a globe of code, its orbit carrying the benchmarks
 
 The drifting constellation behind the headline read as noise. It is replaced
