@@ -30,6 +30,8 @@ const FIGURES = [
   '0.744 OrmAccess recall · Airflow',
   'Calibration error 0.18',
 ]
+const LABEL_FONT = '600 10.5px "Geist Mono Variable", ui-monospace, monospace'
+const LABEL_H = 22 // a label's pill height, px
 
 type Pt = { x: number; y: number; z: number; ch: string }
 type Rect = { l: number; t: number; r: number; b: number }
@@ -48,8 +50,11 @@ let last = 0
 let frame = 0
 let visible = false
 let reducedMotion = false
-// Label widths depend only on the text and the font: measure each once.
-const labelWidths = new Map<string, number>()
+let dpr = 1
+// Each label, pill and text together, is drawn once into a small canvas of its
+// own and placed whole. Drawn afresh every frame, the text snapped to whole
+// device pixels while its pill moved smoothly, so the words shook in the pill.
+const labelSprites = new Map<string, HTMLCanvasElement | null>()
 const cleanups: Array<() => void> = []
 
 const still = () => reducedMotion || props.paused
@@ -70,14 +75,47 @@ function resize() {
   const c = canvas.value
   const h = host.value
   if (!c || !h) return
-  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  dpr = Math.min(window.devicePixelRatio || 1, 2)
   width = h.clientWidth
   height = h.clientHeight
   c.width = Math.round(width * dpr)
   c.height = Math.round(height * dpr)
   ctx = c.getContext('2d')
   ctx?.setTransform(dpr, 0, 0, dpr, 0, 0)
+  labelSprites.clear()
   populate(width < 640 ? 300 : 560)
+}
+
+/** A label's pill and text, drawn once at the canvas's pixel density. */
+function labelSprite(text: string): HTMLCanvasElement | null {
+  if (labelSprites.has(text)) return labelSprites.get(text) ?? null
+  let sprite: HTMLCanvasElement | null = document.createElement('canvas')
+  const g = sprite.getContext('2d')
+  if (g) {
+    g.font = LABEL_FONT
+    const w = Math.ceil(g.measureText(text).width) + 20
+    // A pixel's margin on every side holds the outline. Resizing a canvas
+    // resets its context, so everything is set after.
+    sprite.width = Math.ceil((w + 2) * dpr)
+    sprite.height = Math.ceil((LABEL_H + 2) * dpr)
+    g.setTransform(dpr, 0, 0, dpr, dpr, dpr)
+    g.fillStyle = 'rgba(34, 34, 34, 0.92)'
+    g.strokeStyle = `rgba(${PINK}, 0.7)`
+    g.lineWidth = 1
+    g.beginPath()
+    g.roundRect(0, 0, w, LABEL_H, LABEL_H / 2)
+    g.fill()
+    g.stroke()
+    g.font = LABEL_FONT
+    g.fillStyle = `rgb(${LIGHT})`
+    g.textAlign = 'center'
+    g.textBaseline = 'middle'
+    g.fillText(text, w / 2, LABEL_H / 2 + 0.5)
+  } else {
+    sprite = null
+  }
+  labelSprites.set(text, sprite)
+  return sprite
 }
 
 /** The tagline elements this globe links to, and their boxes relative to the canvas. */
@@ -136,28 +174,21 @@ function draw(time: number) {
     g.stroke()
     g.restore()
   }
-  g.font = '600 10.5px "Geist Mono Variable", ui-monospace, monospace'
   // A narrow screen carries four figures, not six, so they do not crowd.
   const figures = width < 640 ? FIGURES.filter((_, k) => k !== 2 && k !== 5) : FIGURES
   const labels = figures.map((text, k) => ({ text, ...onOrbit(orbitAngle + (k * Math.PI * 2) / figures.length) }))
   const drawLabel = (l: { text: string; x: number; y: number; front: boolean }) => {
-    const label = l.text.toUpperCase()
-    let w = labelWidths.get(label)
-    if (w === undefined) labelWidths.set(label, (w = g.measureText(label).width + 20))
+    const sprite = labelSprite(l.text.toUpperCase())
+    if (!sprite) return
+    const w = sprite.width / dpr
+    const h = sprite.height / dpr
     // Kept inside the canvas: at the orbit's ends a label slides inward.
-    l = { ...l, x: Math.max(w / 2 + 8, Math.min(width - w / 2 - 8, l.x)) }
+    const x = Math.max(w / 2 + 7, Math.min(width - w / 2 - 7, l.x))
+    // Placed on whole device pixels, so the label is copied, not resampled.
+    const left = Math.round((x - w / 2) * dpr) / dpr
+    const top = Math.round((l.y - h / 2) * dpr) / dpr
     g.globalAlpha = l.front ? 1 : 0.32
-    g.fillStyle = 'rgba(34, 34, 34, 0.92)'
-    g.strokeStyle = `rgba(${PINK}, 0.7)`
-    g.lineWidth = 1
-    g.beginPath()
-    g.roundRect(l.x - w / 2, l.y - 11, w, 22, 11)
-    g.fill()
-    g.stroke()
-    g.fillStyle = `rgb(${LIGHT})`
-    g.textAlign = 'center'
-    g.textBaseline = 'middle'
-    g.fillText(label, l.x, l.y + 0.5)
+    g.drawImage(sprite, left, top, w, h)
     g.globalAlpha = 1
   }
   orbitArc(Math.PI, Math.PI * 2, 0.22)
@@ -339,9 +370,9 @@ onMounted(() => {
   cleanups.push(() => window.removeEventListener('scroll', onScroll))
 
   // Redraw once the mono face has loaded, so the glyphs are the right shape
-  // (and the labels are measured in it).
+  // (and the labels are drawn in it).
   document.fonts?.ready.then(() => {
-    labelWidths.clear()
+    labelSprites.clear()
     draw(performance.now())
   })
   draw(performance.now())
