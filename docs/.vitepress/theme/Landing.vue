@@ -199,10 +199,13 @@ const loaderBg = ref<HTMLElement | null>(null)
 
 // The loading screen's timing, ms. The mark builds for at least `build` from
 // navigation start while the fonts arrive, but never past `cap`; the name
-// writes out over `name`; a beat of `hold`; then the two move into the
-// header over `move` as the screen clears.
-const INTRO = { build: 1300, cap: 3000, name: 650, hold: 250, move: 900 }
+// writes out over `name`; a beat of `hold`; the name retracts over `shrink`;
+// then the mark alone moves into the header over `move` as the screen clears.
+const INTRO = { build: 1300, cap: 3000, name: 650, hold: 350, shrink: 550, move: 850 }
+// Entrances ease out; the retraction and the move ease in and out, so the
+// mark sets off gently and settles gently.
 const INTRO_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
+const INTRO_GLIDE = 'cubic-bezier(0.65, 0, 0.35, 1)'
 // Half the mark's width: the lockup scales about the mark's centre.
 const MARK_HALF = 13
 
@@ -240,8 +243,10 @@ watch(still, () => window.dispatchEvent(new Event('scroll')))
 
 /**
  * The loading screen: the mark builds in the middle while the page loads, the
- * name writes out beside it, and the two settle into the header logo's place
- * as the screen clears. Any click, key, scroll or touch skips to the end.
+ * name writes out beside it and then retracts, and the mark alone moves into
+ * the header logo's place as the screen clears; there the header's own name
+ * writes out (CSS, on arrival). Any click, key, scroll or touch skips to the
+ * end.
  */
 async function playIntro() {
   const box = lockup.value
@@ -291,6 +296,14 @@ async function playIntro() {
     await pause(INTRO.hold)
     if (skipped) return
 
+    // Back to the mark alone: the name retracts, and the mark re-centres.
+    const hidden = { clipPath: 'inset(0 100% 0 0)', transform: 'translateX(-0.5em)' }
+    await Promise.all([
+      play(box, [{ transform: centred }, { transform: alone }], { duration: INTRO.shrink, easing: INTRO_GLIDE }),
+      play(name, [{ clipPath: 'inset(0 0% 0 0)', transform: 'none' }, hidden], { duration: INTRO.shrink * 0.85, easing: INTRO_GLIDE }),
+    ])
+    if (skipped) return
+
     // Into the header: at scale 1, on top of the logo it stands in for. The
     // lockup's own place is read unrounded (offsetLeft rounds, and the centre
     // of the screen often falls on half a pixel), so it lands exactly.
@@ -301,7 +314,7 @@ async function playIntro() {
     const dy = target.top - (screen.top + parseFloat(place.top))
     const home = `translate(${dx}px, ${dy}px) scale(1)`
     await Promise.all([
-      play(box, [{ transform: centred }, { transform: home }], { duration: INTRO.move }),
+      play(box, [{ transform: alone }, { transform: home }], { duration: INTRO.move, easing: INTRO_GLIDE }),
       play(bg, [{ opacity: 1 }, { opacity: 0 }], { duration: INTRO.move * 0.75, delay: INTRO.move * 0.2, easing: 'ease' }),
     ])
   } finally {
@@ -316,7 +329,7 @@ async function endIntro() {
   await nextTick()
   document.documentElement.classList.remove('cg-loading')
   loader.value = false
-  setTimeout(() => (arriving.value = false), 2400)
+  setTimeout(() => (arriving.value = false), 2800)
 }
 
 onMounted(async () => {
@@ -1122,18 +1135,35 @@ html.cg-loading .cg-hero :deep(.cg-globe) {
   transform: scale(0.82);
 }
 
+/* The mark has landed: the header's name writes out beside it, as it did on
+   the screen, and then the page arrives. */
+.cg.is-arriving .cg-logo > span {
+  animation: cg-logo-name 0.6s var(--cg-ease) backwards;
+}
+
+@keyframes cg-logo-name {
+  from {
+    clip-path: inset(0 100% 0 0);
+    transform: translateX(-0.5em);
+  }
+}
+
+.cg.is-arriving .cg-line > span {
+  animation-delay: calc(var(--d, 0s) + 0.4s);
+}
+
 .cg.is-arriving .cg-header-actions {
-  transition: opacity 0.6s ease 0.3s;
+  transition: opacity 0.6s ease 0.5s;
 }
 
 .cg.is-arriving .cg-hero-foot {
-  transition: opacity 0.8s ease 0.8s;
+  transition: opacity 0.8s ease 1s;
 }
 
 .cg.is-arriving .cg-hero :deep(.cg-globe) {
   transition:
-    opacity 1s ease 0.15s,
-    transform 1.6s var(--cg-ease) 0.15s;
+    opacity 1s ease 0.35s,
+    transform 1.6s var(--cg-ease) 0.35s;
 }
 
 .cg-header-actions {

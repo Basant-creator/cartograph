@@ -109,7 +109,8 @@ const githubSlug = (s: string) =>
 // the home page, and only where motion is welcome. This decides before the
 // first paint, so the screen is there from the first frame instead of
 // flashing in after the page, and sets the class it is shown by. A timer
-// takes the class away after six seconds whatever else happens, so a script
+// takes the class away after eight seconds whatever else happens (the screen
+// itself is done within six, waiting at most three for fonts), so a script
 // that fails can never leave the page covered. The storage key is the one
 // Landing.vue's "Pause motion" control writes.
 const loadingScreen = `(() => {
@@ -121,7 +122,7 @@ const loadingScreen = `(() => {
     if (localStorage.getItem('cartograph:motion-paused') === '1') return
     const root = document.documentElement
     root.classList.add('cg-loading')
-    setTimeout(() => root.classList.remove('cg-loading'), 6000)
+    setTimeout(() => root.classList.remove('cg-loading'), 8000)
   } catch {}
 })()`
 

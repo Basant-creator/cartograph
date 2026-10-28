@@ -16,13 +16,18 @@ A full load of the home page now opens on a loading screen:
    this for at least 1.3 s from navigation start, and never waits past 3 s.
 2. **The name.** "Cartograph" writes out beside the mark, and the pair
    re-centres.
-3. **Into the header.** The pair shrinks and glides into the header logo's
-   place as the screen clears. It lands exactly on the logo it stands in
-   for: measured in the preview, 0 px out in position and size.
-4. **The page arrives.** The globe grows in, the headline rises, and the
-   header's controls and the hero's captions fade in.
+3. **Back to the mark.** The name retracts, and the mark alone re-centres.
+4. **Into the header.** The mark shrinks and glides into its place in the
+   header logo as the screen clears. It lands exactly on the mark it stands
+   in for: measured in the preview, 0 px out in position and size.
+5. **The page arrives.** The header's name writes out beside the mark.
+   Then the headline rises, the globe grows in, and the header's controls
+   and the hero's captions fade in.
 
-It takes about 3 seconds, and any click, key, scroll or touch skips to the
+The retraction and the glide ease in and out, so the mark sets off gently
+and settles gently.
+
+It takes about 4 seconds, and any click, key, scroll or touch skips to the
 end. It plays only on a full load of the home page. It is skipped on
 in-site navigation, documentation pages, links to a section of the page,
 reduced motion and "Pause motion".
@@ -30,7 +35,8 @@ reduced motion and "Pause motion".
 A small script in the page's head decides before the first paint whether it
 plays, so the screen is there from the first frame. Without JavaScript it
 never shows. If the script that runs it fails, a timer clears the screen
-after 6 seconds, so the page is never left covered.
+after 8 seconds, so the page is never left covered. The screen itself is
+done within 6 seconds, even when it waits the full 3 seconds for fonts.
 
 While verifying, the hand-off first landed half a pixel off: `offsetLeft`
 rounds, and the centre of the screen fell on 711.5 px. The lockup's place
