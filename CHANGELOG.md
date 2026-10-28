@@ -7,6 +7,64 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added — a loading screen that hands the mark to the header
+
+A full load of the home page now opens on a loading screen:
+
+1. **Loading.** The mark builds itself in the middle of a dark screen and
+   sends packet after packet along its edge while the fonts arrive. It does
+   this for at least 1.3 s from navigation start, and never waits past 3 s.
+2. **The name.** "Cartograph" writes out beside the mark, and the pair
+   re-centres.
+3. **Back to the mark.** The name retracts, and the mark alone re-centres.
+4. **Into the header.** The mark shrinks and glides into its place in the
+   header logo as the screen clears. It lands exactly on the mark it stands
+   in for: measured in the preview, 0 px out in position and size.
+5. **The page arrives.** The header's name writes out beside the mark.
+   Then the headline rises, the globe grows in, and the header's controls
+   and the hero's captions fade in.
+
+The retraction and the glide ease in and out, so the mark sets off gently
+and settles gently.
+
+It takes about 4 seconds, and any click, key, scroll or touch skips to the
+end. It plays only on a full load of the home page. It is skipped on
+in-site navigation, documentation pages, links to a section of the page,
+reduced motion and "Pause motion".
+
+A small script in the page's head decides before the first paint whether it
+plays, so the screen is there from the first frame. Without JavaScript it
+never shows. If the script that runs it fails, a timer clears the screen
+after 8 seconds, so the page is never left covered. The screen itself is
+done within 6 seconds, even when it waits the full 3 seconds for fonts.
+
+While verifying, the hand-off first landed half a pixel off: `offsetLeft`
+rounds, and the centre of the screen fell on 711.5 px. The lockup's place
+is now read unrounded.
+
+### Changed — a mark of Cartograph's own, and it moves
+
+The site's mark was a generic "share" icon: three circles and two lines. It
+is now Cartograph's own (`CartographMark.vue`). A square node and a round
+node, two languages, are joined by an edge that bends into a check, inside a
+surveyor's brackets: an edge across languages, with the proof behind it. The
+brackets are the same ones the dot fields' surveyor and the "Prove" step use.
+
+- **Where it appears.** In the landing page's header and its badge, and,
+  newly, before the title in the documentation pages' navigation bar. The
+  favicon is the same mark on a dark tile, and still reads at 16 px.
+- **How it moves.** When it first appears, it builds itself: the brackets
+  close in, the nodes appear, and the edge is drawn. Hovering over or
+  keyboard-focusing its link closes the brackets tighter, redraws the edge and
+  sends a packet along it, and the round node answers when the packet lands.
+- **Idle only where it can be paused.** In the landing page's header a packet
+  also crosses the edge every 8 seconds. The documentation pages have no pause
+  control, so their mark does not idle (WCAG 2.2.2).
+
+It is pure CSS and SVG, coloured by the surrounding text, so it is pink on
+dark and deep pink on the light documentation theme. "Pause motion" and
+reduced motion leave the finished mark, with nothing moving.
+
 ### Fixed — the globe's glyphs no longer run across the orbit's labels
 
 The labels on the orbit's far side were drawn before the globe, at a third of
