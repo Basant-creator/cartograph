@@ -132,6 +132,13 @@
   color: var(--vp-c-brand-1);
 }
 
+/* Cartograph's mark, before the title (see theme/index.ts). */
+.VPNavBar .title .cg-mark {
+  width: 24px;
+  height: 24px;
+  margin-right: 10px;
+}
+
 .VPNavBarMenuLink,
 .VPNavBarMenuGroup .text,
 .VPNavScreenMenuLink,

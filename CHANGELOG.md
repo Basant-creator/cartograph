@@ -7,6 +7,29 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed — a mark of Cartograph's own, and it moves
+
+The site's mark was a generic "share" icon: three circles and two lines. It
+is now Cartograph's own (`CartographMark.vue`). A square node and a round
+node, two languages, are joined by an edge that bends into a check, inside a
+surveyor's brackets: an edge across languages, with the proof behind it. The
+brackets are the same ones the dot fields' surveyor and the "Prove" step use.
+
+- **Where it appears.** In the landing page's header and its badge, and,
+  newly, before the title in the documentation pages' navigation bar. The
+  favicon is the same mark on a dark tile, and still reads at 16 px.
+- **How it moves.** When it first appears, it builds itself: the brackets
+  close in, the nodes appear, and the edge is drawn. Hovering over or
+  keyboard-focusing its link closes the brackets tighter, redraws the edge and
+  sends a packet along it, and the round node answers when the packet lands.
+- **Idle only where it can be paused.** In the landing page's header a packet
+  also crosses the edge every 8 seconds. The documentation pages have no pause
+  control, so their mark does not idle (WCAG 2.2.2).
+
+It is pure CSS and SVG, coloured by the surrounding text, so it is pink on
+dark and deep pink on the light documentation theme. "Pause motion" and
+reduced motion leave the finished mark, with nothing moving.
+
 ### Fixed — the globe's glyphs no longer run across the orbit's labels
 
 The labels on the orbit's far side were drawn before the globe, at a third of

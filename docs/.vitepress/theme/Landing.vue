@@ -11,6 +11,7 @@
 
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { withBase } from 'vitepress'
+import CartographMark from './CartographMark.vue'
 import HalftoneField from './HalftoneField.vue'
 import GlobeField from './GlobeField.vue'
 import SplitWords from './SplitWords.vue'
@@ -283,12 +284,7 @@ onBeforeUnmount(() => {
     <!-- Header -->
     <header class="cg-header" :class="{ 'is-solid': scrolled || menuOpen, 'is-hidden': headerHidden && !menuOpen }">
       <a class="cg-logo" :href="withBase('/')" aria-label="Cartograph — home">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="5" cy="12" r="2.6" />
-          <circle cx="19" cy="5" r="2.6" />
-          <circle cx="19" cy="19" r="2.6" />
-          <path d="M7.4 10.8 16.6 6.2M7.4 13.2l9.2 4.6" />
-        </svg>
+        <CartographMark idle />
         <span>Cartograph</span>
       </a>
       <div class="cg-header-actions">
@@ -385,12 +381,7 @@ onBeforeUnmount(() => {
                 <textPath href="#cg-badge-ring">No model in the graph · Evidence on every edge ·</textPath>
               </text>
             </svg>
-            <svg class="cg-badge-mark" viewBox="0 0 24 24">
-              <circle cx="5" cy="12" r="2.6" />
-              <circle cx="19" cy="5" r="2.6" />
-              <circle cx="19" cy="19" r="2.6" />
-              <path d="M7.4 10.8 16.6 6.2M7.4 13.2l9.2 4.6" />
-            </svg>
+            <CartographMark class="cg-badge-mark" />
           </div>
         </section>
       </div>
@@ -950,17 +941,10 @@ a:hover > .cg-button i {
   text-transform: uppercase;
 }
 
-.cg-logo svg {
-  width: 22px;
-  height: 22px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  transition: transform 0.8s var(--cg-ease);
-}
-
-.cg-logo:hover svg {
-  transform: rotate(-120deg);
+/* The mark's own hover and focus motion is in CartographMark.vue. */
+.cg-logo .cg-mark {
+  width: 26px;
+  height: 26px;
 }
 
 .cg-header-actions {
@@ -1276,12 +1260,10 @@ a:hover > .cg-button i {
 .cg-badge-mark {
   position: absolute;
   inset: 50% auto auto 50%;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   transform: translate(-50%, -50%);
-  fill: none;
-  stroke: var(--cg-pink);
-  stroke-width: 1.5;
+  color: var(--cg-pink);
 }
 
 @keyframes cg-spin {
