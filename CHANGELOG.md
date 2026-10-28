@@ -13,7 +13,8 @@ The labels on the orbit's far side were drawn before the globe, at a third of
 their strength, so its flickering glyphs and falling bands were drawn across
 their text. On the near side the pills were 92% opaque, so the glyphs, edges
 and packets behind them showed through faintly. Either way the words seemed to
-shake, even after the fix below held each label's text still within its pill.
+shake, even after #89 held each label's text still within its pill (the entry
+"the orbit's labels hold still inside their pills", below).
 
 Every label is now drawn last, over the globe, as an opaque pill. A label on
 the far side has its own dimmed version, with its outline and text at 40%,
@@ -22,6 +23,38 @@ instead of being drawn translucent, so it still reads as further away.
 Measured in the preview as the share of a pill's pixels that changed visibly
 from one frame to the next. On the far side: 9.6% before, at most 0.02% after.
 On the near side: 0.28% before, at most 0.06% after.
+
+### Changed — the dot fields keep moving at rest
+
+The two halftone fields, behind the governing principle and in the footer
+dome, had only a faint ripple at rest, and their resting crosshair sat inside
+the content's clearing, where it is never drawn. They now have idle motion of
+their own (`HalftoneField.vue`):
+
+- **The field is swept like a radar screen.** A beam turns about the disc's
+  centre every 7 seconds. The dots it passes swell and light up in the accent
+  colour, then fade back over a quarter turn.
+- **The dome sends out a sonar pulse.** Every 3.6 seconds, a ring of light
+  spreads from the dome's centre and fades once it is past the dense ring.
+- **The crosshair surveys the dots while the pointer is away.** It glides to
+  a point in the dense ring, its brackets close in with a ping, and it moves
+  on. When the way is blocked by content, it fades out and reappears at the
+  next point. Dots part around it as they do around the pointer, and when the
+  pointer leaves, the survey carries on from there.
+
+Lighting only scales dots that are already drawn, so wherever the dots part
+around content, nothing lights. The surveyor keeps 52 px from content, and its
+brackets and ping reach at most 40 px, so they never touch it either. All of it
+stops under "Pause motion" and reduced motion, which leave the same still frame
+as before.
+
+Checked in the preview at 1280 × 800 and on a 375 px screen. Over 24 samples
+per field, no pixel was drawn inside the principle's box or the "Try it" panel.
+The sweep lit up to 18% of the field's dots at once, and a pulse lit up to 78%
+of the dome's as it crossed the dense ring, before its glow was narrowed. Each
+animation frame's callbacks took 0.8 ms (median; 1.1 ms at the 95th
+percentile). With "Pause motion" pressed, both canvases stayed identical over
+1.2 s.
 
 ### Fixed — the orbit's labels hold still inside their pills
 
