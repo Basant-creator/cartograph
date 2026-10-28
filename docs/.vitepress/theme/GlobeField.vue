@@ -8,7 +8,9 @@
 // travelling each one, so the globe sits as the hub of a small graph.
 //
 // One canvas, redrawn per frame only while the hero is on screen. Glyphs dim
-// behind any `data-globe-edge` text so the headline keeps its contrast. Under
+// behind any `data-globe-edge` text so the headline keeps its contrast. The
+// orbit's labels are drawn last, as solid pills, so no glyph ever crosses
+// their text; those on the far side are dimmed rather than hidden. Under
 // prefers-reduced-motion or `paused`, a single still frame.
 
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -32,6 +34,7 @@ const FIGURES = [
 ]
 const LABEL_FONT = '600 10.5px "Geist Mono Variable", ui-monospace, monospace'
 const LABEL_H = 22 // a label's pill height, px
+const FAR = 0.4 // a label on the orbit's far side: the strength of its outline and text
 
 type Pt = { x: number; y: number; z: number; ch: string }
 type Rect = { l: number; t: number; r: number; b: number }
@@ -54,6 +57,8 @@ let dpr = 1
 // Each label, pill and text together, is drawn once into a small canvas of its
 // own and placed whole. Drawn afresh every frame, the text snapped to whole
 // device pixels while its pill moved smoothly, so the words shook in the pill.
+// Each has a near and a far version, both opaque: a translucent far label let
+// the globe's flickering glyphs show through its text.
 const labelSprites = new Map<string, HTMLCanvasElement | null>()
 const cleanups: Array<() => void> = []
 
@@ -86,9 +91,11 @@ function resize() {
   populate(width < 640 ? 300 : 560)
 }
 
-/** A label's pill and text, drawn once at the canvas's pixel density. */
-function labelSprite(text: string): HTMLCanvasElement | null {
-  if (labelSprites.has(text)) return labelSprites.get(text) ?? null
+/** A label's pill and text, near or far, drawn once at the canvas's pixel density. */
+function labelSprite(text: string, far: boolean): HTMLCanvasElement | null {
+  const key = `${far ? 'far' : 'near'}:${text}`
+  if (labelSprites.has(key)) return labelSprites.get(key) ?? null
+  const strength = far ? FAR : 1
   let sprite: HTMLCanvasElement | null = document.createElement('canvas')
   const g = sprite.getContext('2d')
   if (g) {
@@ -99,22 +106,23 @@ function labelSprite(text: string): HTMLCanvasElement | null {
     sprite.width = Math.ceil((w + 2) * dpr)
     sprite.height = Math.ceil((LABEL_H + 2) * dpr)
     g.setTransform(dpr, 0, 0, dpr, dpr, dpr)
-    g.fillStyle = 'rgba(34, 34, 34, 0.92)'
-    g.strokeStyle = `rgba(${PINK}, 0.7)`
+    // An opaque fill: nothing drawn under the label shows through it.
+    g.fillStyle = 'rgb(34, 34, 34)'
+    g.strokeStyle = `rgba(${PINK}, ${0.7 * strength})`
     g.lineWidth = 1
     g.beginPath()
     g.roundRect(0, 0, w, LABEL_H, LABEL_H / 2)
     g.fill()
     g.stroke()
     g.font = LABEL_FONT
-    g.fillStyle = `rgb(${LIGHT})`
+    g.fillStyle = `rgba(${LIGHT}, ${strength})`
     g.textAlign = 'center'
     g.textBaseline = 'middle'
     g.fillText(text, w / 2, LABEL_H / 2 + 0.5)
   } else {
     sprite = null
   }
-  labelSprites.set(text, sprite)
+  labelSprites.set(key, sprite)
   return sprite
 }
 
@@ -178,7 +186,7 @@ function draw(time: number) {
   const figures = width < 640 ? FIGURES.filter((_, k) => k !== 2 && k !== 5) : FIGURES
   const labels = figures.map((text, k) => ({ text, ...onOrbit(orbitAngle + (k * Math.PI * 2) / figures.length) }))
   const drawLabel = (l: { text: string; x: number; y: number; front: boolean }) => {
-    const sprite = labelSprite(l.text.toUpperCase())
+    const sprite = labelSprite(l.text.toUpperCase(), !l.front)
     if (!sprite) return
     const w = sprite.width / dpr
     const h = sprite.height / dpr
@@ -187,12 +195,9 @@ function draw(time: number) {
     // Placed on whole device pixels, so the label is copied, not resampled.
     const left = Math.round((x - w / 2) * dpr) / dpr
     const top = Math.round((l.y - h / 2) * dpr) / dpr
-    g.globalAlpha = l.front ? 1 : 0.32
     g.drawImage(sprite, left, top, w, h)
-    g.globalAlpha = 1
   }
   orbitArc(Math.PI, Math.PI * 2, 0.22)
-  labels.filter((l) => !l.front).forEach(drawLabel)
 
   // A faint wireframe gives the glyphs a definite sphere: the rim, and the
   // equator and two latitudes, which rotation about y leaves where they are.
@@ -296,8 +301,11 @@ function draw(time: number) {
     }
   })
 
-  // The orbit's near half, and its labels, cross in front of the globe.
+  // The orbit's near half crosses in front of the globe. The labels come last,
+  // over everything, the far ones first so the near ones cross over them; no
+  // glyph, edge or packet is ever drawn across a label's text.
   orbitArc(0, Math.PI, 0.5)
+  labels.filter((l) => !l.front).forEach(drawLabel)
   labels.filter((l) => l.front).forEach(drawLabel)
 }
 

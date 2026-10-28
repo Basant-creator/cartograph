@@ -7,6 +7,23 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed — the globe's glyphs no longer run across the orbit's labels
+
+The labels on the orbit's far side were drawn before the globe, at a third of
+their strength, so its flickering glyphs and falling bands were drawn across
+their text. On the near side the pills were 92% opaque, so the glyphs, edges
+and packets behind them showed through faintly. Either way the words seemed to
+shake, even after #89 held each label's text still within its pill (the entry
+"the orbit's labels hold still inside their pills", below).
+
+Every label is now drawn last, over the globe, as an opaque pill. A label on
+the far side has its own dimmed version, with its outline and text at 40%,
+instead of being drawn translucent, so it still reads as further away.
+
+Measured in the preview as the share of a pill's pixels that changed visibly
+from one frame to the next. On the far side: 9.6% before, at most 0.02% after.
+On the near side: 0.28% before, at most 0.06% after.
+
 ### Changed — the dot fields keep moving at rest
 
 The two halftone fields, behind the governing principle and in the footer
