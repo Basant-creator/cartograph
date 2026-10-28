@@ -190,6 +190,21 @@ const reduced = ref(false)
 const mounted = ref(false)
 const motionOn = computed(() => mounted.value && !still.value && !reduced.value)
 const isStill = () => still.value || reduced.value
+/** The loading screen is in the page (shown only while <html> has .cg-loading). */
+const loader = ref(true)
+/** The loading screen has just cleared: the hero's entrances transition in. */
+const arriving = ref(false)
+const lockup = ref<HTMLElement | null>(null)
+const loaderBg = ref<HTMLElement | null>(null)
+
+// The loading screen's timing, ms. The mark builds for at least `build` from
+// navigation start while the fonts arrive, but never past `cap`; the name
+// writes out over `name`; a beat of `hold`; then the two move into the
+// header over `move` as the screen clears.
+const INTRO = { build: 1300, cap: 3000, name: 650, hold: 250, move: 900 }
+const INTRO_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
+// Half the mark's width: the lockup scales about the mark's centre.
+const MARK_HALF = 13
 
 const cleanups: Array<() => void> = []
 
@@ -223,9 +238,94 @@ watch(menuOpen, async (open) => {
 // next scroll.
 watch(still, () => window.dispatchEvent(new Event('scroll')))
 
+/**
+ * The loading screen: the mark builds in the middle while the page loads, the
+ * name writes out beside it, and the two settle into the header logo's place
+ * as the screen clears. Any click, key, scroll or touch skips to the end.
+ */
+async function playIntro() {
+  const box = lockup.value
+  const bg = loaderBg.value
+  const logo = root.value?.querySelector<HTMLElement>('.cg-logo')
+  const name = box?.querySelector('span')
+  if (!box || !bg || !logo || !name || isStill()) return endIntro()
+
+  let skipped = false
+  let skip = () => {}
+  const skipping = new Promise<void>((resolve) => (skip = resolve))
+  const running: Animation[] = []
+  const onInput = () => {
+    skipped = true
+    running.forEach((a) => a.finish())
+    skip()
+  }
+  const inputs = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const
+  inputs.forEach((type) => window.addEventListener(type, onInput, { passive: true }))
+  const pause = (ms: number) => Promise.race([new Promise<void>((r) => setTimeout(r, Math.max(0, ms))), skipping])
+  const play = (el: Element, keyframes: Keyframe[], options: KeyframeAnimationOptions) => {
+    const a = el.animate(keyframes, { easing: INTRO_EASE, fill: 'forwards', ...options })
+    running.push(a)
+    return Promise.race([a.finished.then(() => undefined, () => undefined), skipping])
+  }
+
+  try {
+    // Loading: the mark builds itself (in CSS, from the first paint) while the
+    // fonts arrive, so the name below is set in its own face.
+    const built = Promise.all([document.fonts?.ready, pause(INTRO.build - performance.now())])
+    await Promise.race([built, pause(INTRO.cap - performance.now())])
+    if (skipped) return
+
+    // The name writes out, and the pair moves to be centred together.
+    // Transforms are about the mark's centre (CSS), from the lockup's place.
+    const k = parseFloat(getComputedStyle(box).getPropertyValue('--k')) || 2.6
+    const half = box.offsetHeight / 2
+    const alone = `translate(${-MARK_HALF}px, ${-half}px) scale(${k})`
+    const centred = `translate(${-MARK_HALF - k * (box.offsetWidth / 2 - MARK_HALF)}px, ${-half}px) scale(${k})`
+    await Promise.all([
+      play(box, [{ transform: alone }, { transform: centred }], { duration: INTRO.name }),
+      play(name, [{ clipPath: 'inset(0 100% 0 0)', transform: 'translateX(-0.5em)' }, { clipPath: 'inset(0 0% 0 0)', transform: 'none' }], {
+        duration: INTRO.name,
+        delay: 60,
+      }),
+    ])
+    await pause(INTRO.hold)
+    if (skipped) return
+
+    // Into the header: at scale 1, on top of the logo it stands in for. The
+    // lockup's own place is read unrounded (offsetLeft rounds, and the centre
+    // of the screen often falls on half a pixel), so it lands exactly.
+    const target = logo.getBoundingClientRect()
+    const screen = (box.offsetParent ?? document.body).getBoundingClientRect()
+    const place = getComputedStyle(box)
+    const dx = target.left - (screen.left + parseFloat(place.left))
+    const dy = target.top - (screen.top + parseFloat(place.top))
+    const home = `translate(${dx}px, ${dy}px) scale(1)`
+    await Promise.all([
+      play(box, [{ transform: centred }, { transform: home }], { duration: INTRO.move }),
+      play(bg, [{ opacity: 1 }, { opacity: 0 }], { duration: INTRO.move * 0.75, delay: INTRO.move * 0.2, easing: 'ease' }),
+    ])
+  } finally {
+    inputs.forEach((type) => window.removeEventListener(type, onInput))
+    endIntro()
+  }
+}
+
+/** Clear the loading screen and let the hero arrive. */
+async function endIntro() {
+  arriving.value = true
+  await nextTick()
+  document.documentElement.classList.remove('cg-loading')
+  loader.value = false
+  setTimeout(() => (arriving.value = false), 2400)
+}
+
 onMounted(async () => {
   const el = root.value
   if (!el) return
+  // The head script (config.mts) decided before the first paint whether the
+  // loading screen plays; arriving by in-site navigation, it never does.
+  const loading = document.documentElement.classList.contains('cg-loading')
+  if (!loading) loader.value = false
 
   try {
     still.value = localStorage.getItem(MOTION_KEY) === '1'
@@ -269,6 +369,7 @@ onMounted(async () => {
     marqueeVelocity([...el.querySelectorAll<HTMLElement>('.cg-marquee ul')], isStill),
   )
   if (ring.value) cleanups.push(cursor(el, ring.value, isStill))
+  if (loading) playIntro()
 })
 
 onBeforeUnmount(() => {
@@ -278,8 +379,18 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="root" class="cg" :class="{ 'cg-js': mounted, 'cg-motion': motionOn, 'is-still': still }">
+  <div ref="root" class="cg" :class="{ 'cg-js': mounted, 'cg-motion': motionOn, 'is-still': still, 'is-arriving': arriving }">
     <div ref="ring" class="cg-cursor" aria-hidden="true" />
+
+    <!-- The loading screen: in the page until it has played, and shown only
+         while <html> has .cg-loading, set before the first paint (config.mts). -->
+    <div v-if="loader" class="cg-loader" aria-hidden="true">
+      <div ref="loaderBg" class="cg-loader-bg" />
+      <div ref="lockup" class="cg-loader-lockup">
+        <CartographMark loading />
+        <span>Cartograph</span>
+      </div>
+    </div>
 
     <!-- Header -->
     <header class="cg-header" :class="{ 'is-solid': scrolled || menuOpen, 'is-hidden': headerHidden && !menuOpen }">
@@ -930,7 +1041,9 @@ a:hover > .cg-button i {
   transform: translateY(-100%);
 }
 
-.cg-logo {
+/* The loading screen's lockup shares the logo's rules, so it lands on it exactly. */
+.cg-logo,
+.cg-loader-lockup {
   display: inline-flex;
   align-items: center;
   gap: 0.6rem;
@@ -942,9 +1055,85 @@ a:hover > .cg-button i {
 }
 
 /* The mark's own hover and focus motion is in CartographMark.vue. */
-.cg-logo .cg-mark {
+.cg-logo .cg-mark,
+.cg-loader-lockup .cg-mark {
   width: 26px;
   height: 26px;
+}
+
+/* ---------- Loading screen ---------- */
+
+.cg-loader {
+  display: none;
+}
+
+html.cg-loading .cg-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: block;
+}
+
+.cg-loader-bg {
+  position: absolute;
+  inset: 0;
+  background-color: var(--cg-black);
+}
+
+/* Scaled up and centred on the mark alone; playIntro moves it from here.
+   The origin is the mark's centre (MARK_HALF in the script). */
+.cg-loader-lockup {
+  --k: 2.6;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: 13px 50%;
+  transform: translate(-13px, -50%) scale(var(--k));
+}
+
+.cg-loader-lockup > span {
+  clip-path: inset(0 100% 0 0);
+}
+
+@media (max-width: 640px) {
+  .cg-loader-lockup {
+    --k: 1.6;
+  }
+}
+
+/* While it plays, the header logo waits under it and the hero holds its
+   entrances; once it clears, they arrive. */
+html.cg-loading .cg-logo {
+  visibility: hidden;
+}
+
+html.cg-loading .cg-header-actions,
+html.cg-loading .cg-hero-foot {
+  opacity: 0;
+}
+
+html.cg-loading .cg-line > span {
+  animation: none;
+  transform: translateY(105%);
+}
+
+html.cg-loading .cg-hero :deep(.cg-globe) {
+  opacity: 0;
+  transform: scale(0.82);
+}
+
+.cg.is-arriving .cg-header-actions {
+  transition: opacity 0.6s ease 0.3s;
+}
+
+.cg.is-arriving .cg-hero-foot {
+  transition: opacity 0.8s ease 0.8s;
+}
+
+.cg.is-arriving .cg-hero :deep(.cg-globe) {
+  transition:
+    opacity 1s ease 0.15s,
+    transform 1.6s var(--cg-ease) 0.15s;
 }
 
 .cg-header-actions {

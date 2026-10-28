@@ -8,13 +8,15 @@
 // it closes the brackets tighter, redraws the edge and sends a packet along
 // it to the round node. With `idle`, a packet also travels the edge every few
 // seconds; that is only for pages with a pause control (WCAG 2.2.2), which the
-// landing page's header has and the documentation pages do not.
+// landing page's header has and the documentation pages do not. With
+// `loading`, once built it sends packet after packet: the landing page's
+// loading screen, which lasts a few seconds and any input skips.
 //
 // Pure CSS and SVG, coloured by `currentColor`. All of it stops under
 // prefers-reduced-motion and the landing page's "Pause motion" (`.is-still`),
 // leaving the finished mark.
 
-withDefaults(defineProps<{ idle?: boolean }>(), { idle: false })
+withDefaults(defineProps<{ idle?: boolean; loading?: boolean }>(), { idle: false, loading: false })
 
 // The edge, from the square's right side, down and up into the round node
 // (aimed at its centre, ending on its outline). pathLength makes dash lengths
@@ -23,7 +25,7 @@ const EDGE = 'M18.5 28.5 23.5 33.5 32.7 18.3'
 </script>
 
 <template>
-  <svg class="cg-mark" :class="{ 'is-idle': idle }" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+  <svg class="cg-mark" :class="{ 'is-idle': idle, 'is-loading': loading }" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
     <g class="cg-mark-build is-tl"><path class="cg-mark-corner is-tl" d="M4 14V4h10" /></g>
     <g class="cg-mark-build is-tr"><path class="cg-mark-corner is-tr" d="M34 4h10v10" /></g>
     <g class="cg-mark-build is-br"><path class="cg-mark-corner is-br" d="M44 34v10H34" /></g>
@@ -105,6 +107,14 @@ const EDGE = 'M18.5 28.5 23.5 33.5 32.7 18.3'
 
   .is-idle .cg-mark-target {
     animation: cg-mark-arrive 8s ease-out 2.5s infinite;
+  }
+
+  .is-loading .cg-mark-packet {
+    animation: cg-mark-send 1.1s ease-in-out 1.3s infinite;
+  }
+
+  .is-loading .cg-mark-target {
+    animation: cg-mark-ping 1.1s ease-out 1.3s infinite;
   }
 
   :is(a:hover, a:focus-visible) .cg-mark-corner {
